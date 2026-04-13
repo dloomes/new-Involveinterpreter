@@ -1,0 +1,4 @@
+{
+    "appService.defaultWebAppToDeploy": "/subscriptions/2a79f730-8858-4086-ac1b-4c9c76d64d29/resourceGroups/appsvc_windows_ukwest/providers/Microsoft.Web/sites/IIAPI",
+    "appService.deploySubpath": "API\\publish"
+}

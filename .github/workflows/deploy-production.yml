@@ -1,0 +1,47 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    # Manually triggered from the GitHub Actions tab
+    # Only run this after validating changes on staging
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 1. Build React ────────────────────────────────────────────────────────
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: ii-client/package-lock.json
+
+      - name: Install and build React app
+        working-directory: ii-client
+        run: |
+          npm ci
+          npm run build
+        # Output goes to ../API/wwwroot (set in vite.config.js)
+
+      # ── 2. Build .NET API (includes wwwroot from step above) ──────────────────
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Publish API
+        working-directory: API
+        run: dotnet publish -c Release -o ./publish
+
+      # ── 3. Deploy to Azure Production App Service ─────────────────────────────
+      - name: Deploy to Azure Production
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_PROD_APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_PROD_PUBLISH_PROFILE }}
+          package: API/publish
