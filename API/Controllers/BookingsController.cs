@@ -37,8 +37,9 @@ namespace IIAPI.Controllers
         private readonly EmailService _emailService;
         private readonly SqodService _sqodService;
         private readonly IConfiguration _config;
+        private readonly IWebHostEnvironment _env;
 
-        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, IConfiguration config)
+        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, IConfiguration config, IWebHostEnvironment env)
         {
             _context = context;
             _userManager = userManager;
@@ -46,6 +47,15 @@ namespace IIAPI.Controllers
             _emailService = emailService;
             _sqodService = sqodService;
             _config = config;
+            _env = env;
+        }
+
+        private string? GetLogoDataUri()
+        {
+            var path = Path.Combine(_env.WebRootPath ?? "", "logo.png");
+            if (!System.IO.File.Exists(path)) return null;
+            var bytes = System.IO.File.ReadAllBytes(path);
+            return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
         }
 
         // GET: api/bookings
@@ -703,7 +713,7 @@ namespace IIAPI.Controllers
             string? videoUrl = null, string? contactEmail = null)
         {
             // Build optional extra rows — alternating colours continuing from Time row
-            var logoUrl = $"{_config["AppUrl"] ?? "http://localhost:5173"}/logo.png";
+            var logoSrc = GetLogoDataUri() ?? "";
             var extraRows = new System.Text.StringBuilder();
             var light = true; // Time ends on #f8fafc, so next (Duration) is #ffffff
             void AddRow(string label, string? value, bool isLink = false)
@@ -743,7 +753,7 @@ namespace IIAPI.Controllers
             <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"">
               <tr>
                 <td style=""padding-right:14px;vertical-align:middle;"">
-                  <img src=""{logoUrl}"" alt="""" width=""36"" height=""36"" style=""display:block;border:0;border-radius:4px;"" />
+                  <img src=""{logoSrc}"" alt="""" width=""36"" height=""36"" style=""display:block;border:0;border-radius:4px;"" />
                 </td>
                 <td style=""vertical-align:middle;"">
                   <p style=""margin:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>

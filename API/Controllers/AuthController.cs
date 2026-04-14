@@ -16,17 +16,28 @@ public class AuthController : ControllerBase
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IConfiguration _config;
     private readonly EmailService _emailService;
+    private readonly IWebHostEnvironment _env;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration config,
-        EmailService emailService)
+        EmailService emailService,
+        IWebHostEnvironment env)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _config = config;
         _emailService = emailService;
+        _env = env;
+    }
+
+    private string? GetLogoDataUri()
+    {
+        var path = Path.Combine(_env.WebRootPath ?? "", "logo.png");
+        if (!System.IO.File.Exists(path)) return null;
+        var bytes = System.IO.File.ReadAllBytes(path);
+        return $"data:image/png;base64,{Convert.ToBase64String(bytes)}";
     }
 
     // ---------------------
@@ -166,7 +177,7 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
 
             var firstName = user.FirstName ?? user.Email!;
             var emailTo   = user.Email!;
-            var logoUrl   = $"{appUrl}/logo.png";
+            var logoSrc   = GetLogoDataUri() ?? "";
             var htmlBody  = $@"<!DOCTYPE html>
 <html lang=""en"">
 <head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Reset your password</title></head>
@@ -183,7 +194,7 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
             <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"">
               <tr>
                 <td style=""padding-right:14px;vertical-align:middle;"">
-                  <img src=""{logoUrl}"" alt="""" width=""36"" height=""36"" style=""display:block;border:0;border-radius:4px;"" />
+                  <img src=""{logoSrc}"" alt="""" width=""36"" height=""36"" style=""display:block;border:0;border-radius:4px;"" />
                 </td>
                 <td style=""vertical-align:middle;"">
                   <p style=""margin:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
