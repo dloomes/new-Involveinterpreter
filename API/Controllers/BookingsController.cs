@@ -243,6 +243,7 @@ namespace IIAPI.Controllers
                 if (customerUser?.Email != null)
                 {
                     var custName = customerUser.FirstName ?? customerUser.Email;
+                    var (dur, bType) = await ResolveBookingLabelsAsync(booking);
                     FireBookingNotification(booking,
                         customerEmail: customerUser.Email,
                         customerName: custName,
@@ -250,7 +251,8 @@ namespace IIAPI.Controllers
                         customerSubject: $"Booking #{booking.BookingId} — Received",
                         customerIntro: "Thank you for your booking. We have received your request and will be in touch shortly to confirm your interpreter.",
                         adminSubject: $"New booking #{booking.BookingId} — {custName}",
-                        adminIntro: $"A new booking has been submitted by <strong>{customerUser.FirstName} {customerUser.LastName}</strong>."
+                        adminIntro: $"A new booking has been submitted by <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.",
+                        duration: dur, bookingType: bType
                     );
                 }
 
@@ -342,6 +344,7 @@ namespace IIAPI.Controllers
             if (customerUser?.Email != null)
             {
                 var custName = customerUser.FirstName ?? customerUser.Email;
+                var (dur, bType) = await ResolveBookingLabelsAsync(booking);
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
@@ -349,7 +352,8 @@ namespace IIAPI.Controllers
                     customerSubject: $"Booking #{booking.BookingId} — Updated",
                     customerIntro: "Your booking details have been updated. Please see the summary below.",
                     adminSubject: $"Booking #{booking.BookingId} updated — {custName}",
-                    adminIntro: $"Booking #{booking.BookingId} has been updated for <strong>{customerUser.FirstName} {customerUser.LastName}</strong>."
+                    adminIntro: $"Booking #{booking.BookingId} has been updated for <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.",
+                    duration: dur, bookingType: bType
                 );
             }
 
@@ -522,22 +526,28 @@ namespace IIAPI.Controllers
             // Send interpreter-assigned notifications (only when at least one is being set)
             if (!string.IsNullOrWhiteSpace(dto.Interpreter1) || !string.IsNullOrWhiteSpace(dto.Interpreter2))
             {
-                // Resolve interpreter names
-                var interpNames = new List<string>();
+                // Resolve interpreter user objects (need both name and email)
+                var interpreterUsers = new List<ApplicationUser>();
                 if (!string.IsNullOrWhiteSpace(booking.Interpreter1))
                 {
                     var i = await _userManager.FindByIdAsync(booking.Interpreter1);
-                    if (i != null) interpNames.Add($"{i.FirstName} {i.LastName}".Trim());
+                    if (i != null) interpreterUsers.Add(i);
                 }
                 if (!string.IsNullOrWhiteSpace(booking.Interpreter2))
                 {
                     var i = await _userManager.FindByIdAsync(booking.Interpreter2);
-                    if (i != null) interpNames.Add($"{i.FirstName} {i.LastName}".Trim());
+                    if (i != null) interpreterUsers.Add(i);
                 }
+
+                var interpNames = interpreterUsers.Select(i => $"{i.FirstName} {i.LastName}".Trim()).ToList();
                 var interpreterDetail = interpNames.Count > 0 ? string.Join(", ", interpNames) : null;
 
                 var customerUser = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
                 var admins = (await _userManager.GetUsersInRoleAsync("Admin")).ToList();
+
+                var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+
+                // Notify customer and admins
                 if (customerUser?.Email != null)
                 {
                     var custName = customerUser.FirstName ?? customerUser.Email;
@@ -555,8 +565,32 @@ namespace IIAPI.Controllers
                         customerSubject: $"Booking #{booking.BookingId} — Interpreter Confirmed",
                         customerIntro: custIntro,
                         adminSubject: $"Interpreter assigned — Booking #{booking.BookingId}",
-                        adminIntro: adminIntro
+                        adminIntro: adminIntro,
+                        duration: dur, bookingType: bType
                     );
+                }
+
+                // Notify each assigned interpreter
+                var customerName = customerUser != null
+                    ? $"{customerUser.FirstName} {customerUser.LastName}".Trim()
+                    : "a customer";
+                var date = booking.BookingDate.HasValue ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy") : "—";
+                var time = booking.BookingTime.HasValue ? booking.BookingTime.Value.ToString("HH:mm") : "—";
+
+                foreach (var interpreter in interpreterUsers)
+                {
+                    if (string.IsNullOrWhiteSpace(interpreter.Email)) continue;
+                    var interpName = $"{interpreter.FirstName} {interpreter.LastName}".Trim();
+                    var subject = $"Booking #{booking.BookingId} — You have been assigned";
+                    var intro = $"You have been assigned as an interpreter for a booking on behalf of <strong>{customerName}</strong>.";
+                    var html = BuildBookingEmail(interpName, subject, intro, booking.BookingId, date, time,
+                        duration: dur, bookingType: bType,
+                        videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail);
+                    _ = Task.Run(async () =>
+                    {
+                        try { await _emailService.SendAsync(interpreter.Email, subject, html); }
+                        catch (Exception ex) { Console.WriteLine($"[Email] Interpreter notification failed: {ex.Message}"); }
+                    });
                 }
             }
 
@@ -660,49 +694,119 @@ namespace IIAPI.Controllers
 
         // ── Email notifications ───────────────────────────────────────
 
-        private static string BuildBookingEmail(string recipientName, string heading, string intro, int bookingId, string date, string time) => $@"
+        private static string BuildBookingEmail(
+            string recipientName, string heading, string intro,
+            int bookingId, string date, string time,
+            string? duration = null, string? bookingType = null,
+            string? videoUrl = null, string? contactEmail = null)
+        {
+            // Build optional extra rows — alternating colours continuing from Time row
+            var extraRows = new System.Text.StringBuilder();
+            var light = true; // Time ends on #f8fafc, so next (Duration) is #ffffff
+            void AddRow(string label, string? value, bool isLink = false)
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                var bg = light ? "#ffffff" : "#f8fafc";
+                light = !light;
+                var cell = isLink
+                    ? $@"<a href=""{value}"" style=""color:#0057b8;word-break:break-all;font-family:Arial,sans-serif;font-size:13px;"">{value}</a>"
+                    : $@"<span style=""font-family:Arial,sans-serif;font-size:13px;color:#0f172a;"">{value}</span>";
+                extraRows.Append($@"
+              <tr>
+                <td bgcolor=""{bg}"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#64748b;border:1px solid #e2e8f0;border-top:none;"">{label}</td>
+                <td bgcolor=""{bg}"" style=""padding:10px 14px;border:1px solid #e2e8f0;border-left:none;border-top:none;"">{cell}</td>
+              </tr>");
+            }
+            AddRow("Duration",      duration);
+            AddRow("Booking type",  bookingType);
+            AddRow("Video URL",     videoUrl,     isLink: true);
+            AddRow("Contact email", contactEmail);
+
+            return $@"
 <!DOCTYPE html>
-<html>
-<body style=""margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;"">
-  <table width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""background:#f8fafc;padding:40px 0;"">
-    <tr><td align=""center"">
-      <table width=""560"" cellpadding=""0"" cellspacing=""0"" style=""background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;"">
-        <tr><td style=""background:linear-gradient(90deg,#061926 0%,#0c6ea6 100%);padding:28px 40px;"">
-          <p style=""margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px;"">Involve Interpreter</p>
-        </td></tr>
-        <tr><td style=""padding:36px 40px;"">
-          <p style=""margin:0 0 8px;font-size:18px;font-weight:600;color:#0f172a;"">Hi {recipientName},</p>
-          <p style=""margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;"">{intro}</p>
-          <table style=""width:100%;border-collapse:collapse;"">
-            <tr style=""background:#f8fafc;"">
-              <td style=""padding:10px 14px;font-size:13px;font-weight:600;color:#64748b;border:1px solid #e2e8f0;width:38%;"">Booking reference</td>
-              <td style=""padding:10px 14px;font-size:13px;color:#0f172a;border:1px solid #e2e8f0;"">#{bookingId}</td>
-            </tr>
-            <tr>
-              <td style=""padding:10px 14px;font-size:13px;font-weight:600;color:#64748b;border:1px solid #e2e8f0;"">Date</td>
-              <td style=""padding:10px 14px;font-size:13px;color:#0f172a;border:1px solid #e2e8f0;"">{date}</td>
-            </tr>
-            <tr style=""background:#f8fafc;"">
-              <td style=""padding:10px 14px;font-size:13px;font-weight:600;color:#64748b;border:1px solid #e2e8f0;"">Time</td>
-              <td style=""padding:10px 14px;font-size:13px;color:#0f172a;border:1px solid #e2e8f0;"">{time}</td>
-            </tr>
-          </table>
-        </td></tr>
-        <tr><td style=""background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;"">
-          <p style=""margin:0;font-size:12px;color:#94a3b8;"">Involve Interpreter &mdash; bookings@involveinterpreter.com</p>
-        </td></tr>
+<html lang=""en"">
+<head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>{heading}</title></head>
+<body style=""margin:0;padding:0;background-color:#f8fafc;"">
+  <!--[if mso]><table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0""><tr><td align=""center"" style=""padding:40px 0;""><![endif]-->
+  <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""background-color:#f8fafc;"">
+    <tr><td align=""center"" style=""padding:40px 16px;"">
+
+      <!-- Card -->
+      <table role=""presentation"" width=""560"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""width:560px;max-width:100%;background-color:#ffffff;border:1px solid #e2e8f0;"">
+
+        <!-- Header -->
+        <tr>
+          <td bgcolor=""#003366"" style=""background-color:#003366;padding:28px 40px;"">
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td style=""padding:36px 40px;background-color:#ffffff;"">
+            <p style=""margin:0 0 8px 0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#0f172a;"">Hi {recipientName},</p>
+            <p style=""margin:0 0 28px 0;font-family:Arial,sans-serif;font-size:14px;color:#475569;line-height:1.6;"">{intro}</p>
+
+            <!-- Details table -->
+            <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"">
+              <tr>
+                <td width=""38%"" bgcolor=""#f8fafc"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#64748b;border:1px solid #e2e8f0;"">Booking reference</td>
+                <td bgcolor=""#f8fafc"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;color:#0f172a;border:1px solid #e2e8f0;border-left:none;"">#{bookingId}</td>
+              </tr>
+              <tr>
+                <td bgcolor=""#ffffff"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#64748b;border:1px solid #e2e8f0;border-top:none;"">Date</td>
+                <td bgcolor=""#ffffff"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;color:#0f172a;border:1px solid #e2e8f0;border-left:none;border-top:none;"">{date}</td>
+              </tr>
+              <tr>
+                <td bgcolor=""#f8fafc"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;color:#64748b;border:1px solid #e2e8f0;border-top:none;"">Time</td>
+                <td bgcolor=""#f8fafc"" style=""padding:10px 14px;font-family:Arial,sans-serif;font-size:13px;color:#0f172a;border:1px solid #e2e8f0;border-left:none;border-top:none;"">{time}</td>
+              </tr>
+              {extraRows}
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td bgcolor=""#f8fafc"" style=""background-color:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;"">
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;"">Involve Interpreter &mdash; bookings@involveinterpreter.com</p>
+          </td>
+        </tr>
+
       </table>
+      <!-- /Card -->
+
     </td></tr>
   </table>
+  <!--[if mso]></td></tr></table><![endif]-->
 </body>
 </html>";
+        }
+
+        private async Task<(string? duration, string? bookingType)> ResolveBookingLabelsAsync(Booking booking)
+        {
+            string? duration = null;
+            if (booking.DurationId.HasValue)
+            {
+                var dur = await _context.Duration.FindAsync(booking.DurationId.Value);
+                duration = dur?.Duration;
+            }
+            string? bookingType = null;
+            if (booking.BookingType.HasValue)
+            {
+                var bt = await _context.BookingType.FindAsync(booking.BookingType.Value);
+                bookingType = bt?.BookingType;
+            }
+            return (duration, bookingType);
+        }
 
         private void FireBookingNotification(
             Booking booking,
             string customerEmail, string customerName,
             IList<ApplicationUser> admins,
             string customerSubject, string customerIntro,
-            string adminSubject, string adminIntro)
+            string adminSubject, string adminIntro,
+            string? duration = null, string? bookingType = null)
         {
             var date = booking.BookingDate.HasValue
                 ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy")
@@ -710,13 +814,15 @@ namespace IIAPI.Controllers
             var time = booking.BookingTime.HasValue
                 ? booking.BookingTime.Value.ToString("HH:mm")
                 : "—";
-            var id = booking.BookingId;
+            var id       = booking.BookingId;
+            var videoUrl = booking.VideoUrl;
+            var contactEmail = booking.ContactEmail;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var html = BuildBookingEmail(customerName, customerSubject, customerIntro, id, date, time);
+                    var html = BuildBookingEmail(customerName, customerSubject, customerIntro, id, date, time, duration, bookingType, videoUrl, contactEmail);
                     await _emailService.SendAsync(customerEmail, customerSubject, html);
                 }
                 catch (Exception ex) { Console.WriteLine($"[Email] Booking customer notification failed: {ex.Message}"); }
@@ -727,7 +833,7 @@ namespace IIAPI.Controllers
                     try
                     {
                         var adminName = admin.FirstName ?? "Admin";
-                        var html = BuildBookingEmail(adminName, adminSubject, adminIntro, id, date, time);
+                        var html = BuildBookingEmail(adminName, adminSubject, adminIntro, id, date, time, duration, bookingType, videoUrl, contactEmail);
                         await _emailService.SendAsync(admin.Email, adminSubject, html);
                     }
                     catch (Exception ex) { Console.WriteLine($"[Email] Booking admin notification failed: {ex.Message}"); }
@@ -775,6 +881,7 @@ namespace IIAPI.Controllers
             if (customerUser?.Email != null)
             {
                 var custName = customerUser.FirstName ?? customerUser.Email;
+                var (dur, bType) = await ResolveBookingLabelsAsync(booking);
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
@@ -782,7 +889,8 @@ namespace IIAPI.Controllers
                     customerSubject: $"Booking #{booking.BookingId} — Unable to fulfil",
                     customerIntro: "Unfortunately, we were unable to fulfil your booking request. Please contact us if you have any questions or would like to make an alternative arrangement.",
                     adminSubject: "",
-                    adminIntro: "");
+                    adminIntro: "",
+                    duration: dur, bookingType: bType);
             }
 
             return Ok();

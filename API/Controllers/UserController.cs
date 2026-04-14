@@ -39,36 +39,58 @@ public class UsersController : ControllerBase
 
     private string BuildActivationEmail(string firstName, string activationLink) => $@"
 <!DOCTYPE html>
-<html>
-<body style=""margin:0;padding:0;background:#f8fafc;font-family:'Segoe UI',Arial,sans-serif;"">
-  <table width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""background:#f8fafc;padding:40px 0;"">
-    <tr><td align=""center"">
-      <table width=""560"" cellpadding=""0"" cellspacing=""0"" style=""background:#fff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;"">
-        <tr><td style=""background:linear-gradient(90deg,#061926 0%,#0c6ea6 100%);padding:28px 40px;"">
-          <p style=""margin:0;color:#fff;font-size:22px;font-weight:700;letter-spacing:-0.3px;"">Involve Interpreter</p>
-        </td></tr>
-        <tr><td style=""padding:36px 40px;"">
-          <p style=""margin:0 0 12px;font-size:18px;font-weight:600;color:#0f172a;"">Welcome, {firstName}!</p>
-          <p style=""margin:0 0 24px;font-size:14px;color:#475569;line-height:1.6;"">
-            Your Involve Interpreter account has been created. Please activate it by clicking the button below.
-            This link will expire in <strong>7 days</strong>.
-          </p>
-          <div style=""text-align:center;margin:28px 0;"">
-            <a href=""{activationLink}"" style=""display:inline-block;background:linear-gradient(90deg,#003366 0%,#0057b8 100%);color:#fff;text-decoration:none;font-size:15px;font-weight:600;padding:14px 36px;border-radius:8px;"">
-              Activate my account
-            </a>
-          </div>
-          <p style=""margin:20px 0 0;font-size:12px;color:#94a3b8;"">
-            Or paste this link into your browser:<br/>
-            <a href=""{activationLink}"" style=""color:#0057b8;word-break:break-all;"">{activationLink}</a>
-          </p>
-        </td></tr>
-        <tr><td style=""background:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;"">
-          <p style=""margin:0;font-size:12px;color:#94a3b8;"">If you did not expect this email, you can ignore it safely.</p>
-        </td></tr>
+<html lang=""en"">
+<head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Activate your account</title></head>
+<body style=""margin:0;padding:0;background-color:#f8fafc;"">
+  <!--[if mso]><table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0""><tr><td align=""center"" style=""padding:40px 0;""><![endif]-->
+  <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""background-color:#f8fafc;"">
+    <tr><td align=""center"" style=""padding:40px 16px;"">
+
+      <table role=""presentation"" width=""560"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""width:560px;max-width:100%;background-color:#ffffff;border:1px solid #e2e8f0;"">
+
+        <!-- Header -->
+        <tr>
+          <td bgcolor=""#003366"" style=""background-color:#003366;padding:28px 40px;"">
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td bgcolor=""#ffffff"" style=""background-color:#ffffff;padding:36px 40px;"">
+            <p style=""margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#0f172a;"">Welcome, {firstName}!</p>
+            <p style=""margin:0 0 24px 0;font-family:Arial,sans-serif;font-size:14px;color:#475569;line-height:1.6;"">
+              Your Involve Interpreter account has been created. Please activate it by clicking the button below.
+              This link will expire in <strong>7 days</strong>.
+            </p>
+
+            <!-- Button -->
+            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""margin:28px auto;"">
+              <tr>
+                <td bgcolor=""#003366"" style=""background-color:#003366;padding:14px 36px;"">
+                  <a href=""{activationLink}"" style=""font-family:Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;"">Activate my account</a>
+                </td>
+              </tr>
+            </table>
+
+            <p style=""margin:20px 0 0 0;font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;"">
+              Or paste this link into your browser:<br/>
+              <a href=""{activationLink}"" style=""color:#0057b8;word-break:break-all;font-family:Arial,sans-serif;font-size:12px;"">{activationLink}</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td bgcolor=""#f8fafc"" style=""background-color:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;"">
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;"">If you did not expect this email, you can ignore it safely.</p>
+          </td>
+        </tr>
+
       </table>
     </td></tr>
   </table>
+  <!--[if mso]></td></tr></table><![endif]-->
 </body>
 </html>";
 

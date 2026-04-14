@@ -166,23 +166,58 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
 
             var firstName = user.FirstName ?? user.Email!;
             var emailTo   = user.Email!;
-            var htmlBody  = $@"<div style=""font-family:Arial,sans-serif;max-width:520px;margin:0 auto"">
-                     <div style=""background:linear-gradient(135deg,#061926,#2ea3f2);padding:32px;border-radius:8px 8px 0 0;text-align:center"">
-                       <h2 style=""color:#fff;margin:0;font-size:22px"">Involve Interpreter</h2>
-                     </div>
-                     <div style=""background:#fff;padding:32px;border:1px solid #e2e8f0;border-top:none;border-radius:0 0 8px 8px"">
-                       <p style=""color:#0f172a;font-size:16px"">Hi {firstName},</p>
-                       <p style=""color:#475569"">We received a request to reset your password. Click the button below — this link expires in 24 hours.</p>
-                       <div style=""text-align:center;margin:32px 0"">
-                         <a href=""{resetUrl}""
-                            style=""background:linear-gradient(90deg,#0c6ea6,#2ea3f2);color:#fff;padding:14px 32px;
-                                   border-radius:8px;text-decoration:none;font-weight:600;font-size:15px"">
-                           Reset password
-                         </a>
-                       </div>
-                       <p style=""color:#94a3b8;font-size:13px"">If you didn't request this, you can safely ignore this email.</p>
-                     </div>
-                   </div>";
+            var htmlBody  = $@"<!DOCTYPE html>
+<html lang=""en"">
+<head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Reset your password</title></head>
+<body style=""margin:0;padding:0;background-color:#f8fafc;"">
+  <!--[if mso]><table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0""><tr><td align=""center"" style=""padding:40px 0;""><![endif]-->
+  <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""background-color:#f8fafc;"">
+    <tr><td align=""center"" style=""padding:40px 16px;"">
+
+      <table role=""presentation"" width=""560"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""width:560px;max-width:100%;background-color:#ffffff;border:1px solid #e2e8f0;"">
+
+        <!-- Header -->
+        <tr>
+          <td bgcolor=""#003366"" style=""background-color:#003366;padding:28px 40px;"">
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td bgcolor=""#ffffff"" style=""background-color:#ffffff;padding:36px 40px;"">
+            <p style=""margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#0f172a;"">Hi {firstName},</p>
+            <p style=""margin:0 0 24px 0;font-family:Arial,sans-serif;font-size:14px;color:#475569;line-height:1.6;"">We received a request to reset your password. Click the button below — this link expires in <strong>24 hours</strong>.</p>
+
+            <!-- Button -->
+            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""margin:28px auto;"">
+              <tr>
+                <td bgcolor=""#003366"" style=""background-color:#003366;padding:14px 36px;"">
+                  <a href=""{resetUrl}"" style=""font-family:Arial,sans-serif;font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;"">Reset password</a>
+                </td>
+              </tr>
+            </table>
+
+            <p style=""margin:20px 0 0 0;font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;"">
+              Or paste this link into your browser:<br/>
+              <a href=""{resetUrl}"" style=""color:#0057b8;word-break:break-all;font-family:Arial,sans-serif;font-size:12px;"">{resetUrl}</a>
+            </p>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td bgcolor=""#f8fafc"" style=""background-color:#f8fafc;padding:16px 40px;border-top:1px solid #e2e8f0;"">
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:12px;color:#94a3b8;"">If you didn't request this, you can safely ignore this email.</p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+  <!--[if mso]></td></tr></table><![endif]-->
+</body>
+</html>";
 
             // Send in background — respond immediately so the browser doesn't time out
             _ = Task.Run(async () =>
