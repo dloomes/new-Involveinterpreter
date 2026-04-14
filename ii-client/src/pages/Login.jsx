@@ -107,14 +107,6 @@ export default function Login() {
         />
 
         <Box sx={{ position: "relative", textAlign: "center" }}>
-          <Box sx={{ mb: 4 }}>
-            <img
-              src="/logo.png"
-              alt="Involve Interpreter"
-              style={{ height: 52, objectFit: "contain", filter: "brightness(0) invert(1)" }}
-            />
-          </Box>
-
           <Typography variant="h3" fontWeight={800} sx={{ mb: 1.5, letterSpacing: "-0.5px" }}>
             Involve Interpreter
           </Typography>
@@ -180,6 +172,15 @@ export default function Login() {
         }}
       >
         <Box sx={{ width: "100%", maxWidth: 420 }}>
+
+          {/* Logo — shown above the form */}
+          <Box sx={{ mb: 4, display: "flex", justifyContent: "center" }}>
+            <img
+              src="/logo.png"
+              alt="Involve Interpreter"
+              style={{ height: 64, objectFit: "contain" }}
+            />
+          </Box>
 
           {/* ── Forgot password view ── */}
           {forgotMode ? (
@@ -249,10 +250,10 @@ export default function Login() {
           ) : (
             /* ── Sign in view ── */
             <>
-              <Typography variant="h4" fontWeight={700} sx={{ mb: 0.5, color: "#0f172a" }}>
+              <Typography variant="h4" fontWeight={700} sx={{ mb: 0.5, color: "#0f172a", textAlign: "center" }}>
                 Welcome back
               </Typography>
-              <Typography variant="body2" sx={{ mb: 4, color: "#64748b" }}>
+              <Typography variant="body2" sx={{ mb: 4, color: "#64748b", textAlign: "center" }}>
                 Sign in to your Involve Interpreter account
               </Typography>
 
