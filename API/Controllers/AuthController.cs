@@ -166,6 +166,7 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
 
             var firstName = user.FirstName ?? user.Email!;
             var emailTo   = user.Email!;
+            var logoUrl   = $"{appUrl}/logo.png";
             var htmlBody  = $@"<!DOCTYPE html>
 <html lang=""en"">
 <head><meta charset=""UTF-8""><meta name=""viewport"" content=""width=device-width,initial-scale=1""><title>Reset your password</title></head>
@@ -178,8 +179,8 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
 
         <!-- Header -->
         <tr>
-          <td bgcolor=""#003366"" style=""background-color:#003366;padding:28px 40px;"">
-            <p style=""margin:0;font-family:Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
+          <td bgcolor=""#003366"" style=""background-color:#003366;padding:24px 40px;"">
+            <img src=""{logoUrl}"" alt=""Involve Interpreter"" width=""140"" style=""display:block;height:auto;border:0;"" />
           </td>
         </tr>
 

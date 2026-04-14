@@ -132,7 +132,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
         VideoUrl: form.videoUrl,
         AddInfo: form.addInfo,
       });
-      onSaved();
+      onSaved("Booking updated successfully");
       onClose();
     } catch {
       setSaveError("Failed to save changes. Please try again.");
@@ -145,7 +145,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
     setDeclining(true);
     try {
       await api.patch(`/bookings/${bookingId}/decline`);
-      onSaved();
+      onSaved("Booking marked as unable to fulfil");
       onClose();
     } catch {
       setSaveError("Failed to decline booking. Please try again.");
@@ -159,7 +159,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
     setCancelling(true);
     try {
       await api.patch(`/bookings/${bookingId}/cancel`);
-      onSaved();
+      onSaved("Booking cancelled successfully");
       onClose();
     } catch {
       setSaveError("Failed to cancel booking. Please try again.");

@@ -694,13 +694,14 @@ namespace IIAPI.Controllers
 
         // ── Email notifications ───────────────────────────────────────
 
-        private static string BuildBookingEmail(
+        private string BuildBookingEmail(
             string recipientName, string heading, string intro,
             int bookingId, string date, string time,
             string? duration = null, string? bookingType = null,
             string? videoUrl = null, string? contactEmail = null)
         {
             // Build optional extra rows — alternating colours continuing from Time row
+            var logoUrl = $"{_config["AppUrl"] ?? "http://localhost:5173"}/logo.png";
             var extraRows = new System.Text.StringBuilder();
             var light = true; // Time ends on #f8fafc, so next (Duration) is #ffffff
             void AddRow(string label, string? value, bool isLink = false)
@@ -736,8 +737,8 @@ namespace IIAPI.Controllers
 
         <!-- Header -->
         <tr>
-          <td bgcolor=""#003366"" style=""background-color:#003366;padding:28px 40px;"">
-            <p style=""margin:0;font-family:Arial,sans-serif;font-size:20px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
+          <td bgcolor=""#003366"" style=""background-color:#003366;padding:24px 40px;"">
+            <img src=""{logoUrl}"" alt=""Involve Interpreter"" width=""140"" style=""display:block;height:auto;border:0;"" />
           </td>
         </tr>
 
