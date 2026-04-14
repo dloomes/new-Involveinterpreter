@@ -126,11 +126,12 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
     var token = tokenHandler.CreateToken(tokenDescriptor);
     var tokenString = tokenHandler.WriteToken(token);
 
+    var isDev = _env.IsDevelopment();
     Response.Cookies.Append("access_token", tokenString, new CookieOptions
     {
         HttpOnly = true,
-        Secure = true,
-        SameSite = SameSiteMode.None,
+        Secure = !isDev,
+        SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
         Path = "/",
         Expires = DateTime.UtcNow.AddDays(7)
     });
