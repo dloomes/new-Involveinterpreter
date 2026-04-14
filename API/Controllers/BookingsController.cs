@@ -750,22 +750,17 @@ namespace IIAPI.Controllers
         <!-- Header -->
         <tr>
           <td bgcolor=""#003366"" style=""background-color:#003366;padding:20px 40px;"">
-            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"">
-              <tr>
-                <td style=""padding-right:14px;vertical-align:middle;"">
-                  <img src=""{logoSrc}"" alt="""" width=""36"" height=""36"" style=""display:block;border:0;border-radius:4px;"" />
-                </td>
-                <td style=""vertical-align:middle;"">
-                  <p style=""margin:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
-                </td>
-              </tr>
-            </table>
+            <p style=""margin:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
           </td>
         </tr>
 
         <!-- Body -->
         <tr>
           <td style=""padding:36px 40px;background-color:#ffffff;"">
+
+            <!-- Logo above booking data -->
+            {(logoSrc != "" ? $@"<p style=""margin:0 0 20px 0;text-align:center;""><img src=""{logoSrc}"" alt=""Involve Interpreter"" width=""120"" style=""display:inline-block;border:0;height:auto;"" /></p>" : "")}
+
             <p style=""margin:0 0 8px 0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#0f172a;"">Hi {recipientName},</p>
             <p style=""margin:0 0 28px 0;font-family:Arial,sans-serif;font-size:14px;color:#475569;line-height:1.6;"">{intro}</p>
 
