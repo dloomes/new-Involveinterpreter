@@ -43,7 +43,7 @@ function PrivateRoute({ children }) {
       secondary: {main: "#fa8072"}
     },
     typography: {
-      fontFamily: "'Roboto'",
+      fontFamily: "'Open Sans', 'Roboto', sans-serif",
       warningText: {
         color:"red"
       }
