@@ -179,8 +179,17 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
 
         <!-- Header -->
         <tr>
-          <td bgcolor=""#003366"" style=""background-color:#003366;padding:24px 40px;"">
-            <img src=""{logoUrl}"" alt=""Involve Interpreter"" width=""140"" style=""display:block;height:auto;border:0;"" />
+          <td bgcolor=""#003366"" style=""background-color:#003366;padding:20px 40px;"">
+            <table role=""presentation"" cellpadding=""0"" cellspacing=""0"" border=""0"">
+              <tr>
+                <td style=""padding-right:14px;vertical-align:middle;"">
+                  <img src=""{logoUrl}"" alt="""" width=""36"" height=""36"" style=""display:block;border:0;border-radius:4px;"" />
+                </td>
+                <td style=""vertical-align:middle;"">
+                  <p style=""margin:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#ffffff;"">Involve Interpreter</p>
+                </td>
+              </tr>
+            </table>
           </td>
         </tr>
 

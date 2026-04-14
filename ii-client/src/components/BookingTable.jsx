@@ -10,8 +10,6 @@ import {
   DialogActions,
   Divider,
   IconButton,
-  Snackbar,
-  Alert,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
@@ -131,7 +129,6 @@ export default function BookingTable({
   const [editingId, setEditingId] = useState(null);
   const [assigningId, setAssigningId] = useState(null);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [snack, setSnack] = useState(null); // { message, severity }
 
   useEffect(() => {
     setLoading(true);
@@ -143,8 +140,7 @@ export default function BookingTable({
   }, [endpoint, refreshKey]);
 
   const handleSaved = (message = "Changes saved") => {
-    setSnack({ message, severity: "success" });
-    setTimeout(() => navigate("/"), 1500);
+    navigate("/", { state: { snack: message } });
   };
 
   const isCancelled = selected?.status?.toLowerCase() === "cancelled";
@@ -306,23 +302,6 @@ export default function BookingTable({
         onClose={() => setAssigningId(null)}
         onSaved={() => handleSaved("Interpreters assigned successfully")}
       />
-
-      {/* Success / error snackbar */}
-      <Snackbar
-        open={!!snack}
-        autoHideDuration={1500}
-        onClose={() => setSnack(null)}
-        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-      >
-        <Alert
-          onClose={() => setSnack(null)}
-          severity={snack?.severity ?? "success"}
-          variant="filled"
-          sx={{ borderRadius: 2 }}
-        >
-          {snack?.message}
-        </Alert>
-      </Snackbar>
     </Box>
   );
 }

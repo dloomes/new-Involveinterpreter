@@ -17,7 +17,9 @@ import {
 } from "@mui/material";
 import EditBookingDialog from "../components/EditBookingDialog";
 import AssignInterpreterDialog from "../components/AssignInterpreterDialog";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
+import Snackbar from "@mui/material/Snackbar";
+import MuiAlert from "@mui/material/Alert";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import PendingActionsIcon from "@mui/icons-material/PendingActions";
@@ -89,7 +91,9 @@ const StatCard = ({ icon, label, value, color, bg, loading }) => (
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
+  const [snackMessage, setSnackMessage] = useState(location.state?.snack ?? null);
   const isAdmin = user?.roles?.includes("Admin");
   const isInterpreter = user?.roles?.includes("Interpreter");
 
@@ -669,6 +673,17 @@ export default function Dashboard() {
           api.get("/bookings/admin-assigning").then((r) => setAssigning(r.data)).catch(console.error);
         }}
       />
+
+      <Snackbar
+        open={!!snackMessage}
+        autoHideDuration={3000}
+        onClose={() => setSnackMessage(null)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <MuiAlert onClose={() => setSnackMessage(null)} severity="success" variant="filled" sx={{ borderRadius: 2 }}>
+          {snackMessage}
+        </MuiAlert>
+      </Snackbar>
     </Box>
   );
 }

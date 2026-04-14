@@ -10,7 +10,6 @@ import {
   Divider,
   Alert,
   InputAdornment,
-  Snackbar,
 } from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
@@ -74,7 +73,6 @@ export default function CreateBooking() {
   const [durations, setDurations] = useState([]);
   const [bookingTypes, setBookingTypes] = useState([]);
   const [error, setError] = useState("");
-  const [snack, setSnack] = useState(false);
 
   // Admin — on behalf of
   const [customers, setCustomers] = useState([]);
@@ -165,8 +163,7 @@ export default function CreateBooking() {
       };
 
       await api.post("/bookings", payload);
-      setSnack(true);
-      setTimeout(() => navigate("/"), 1500);
+      navigate("/", { state: { snack: "Booking created successfully" } });
     } catch (err) {
       setError(
         err.response?.data?.title ||
@@ -176,7 +173,6 @@ export default function CreateBooking() {
   };
 
   return (
-    <>
     <Box sx={{ maxWidth: 720, mx: "auto" }}>
       {/* Header */}
       <Box sx={{ mb: 4 }}>
@@ -562,17 +558,5 @@ export default function CreateBooking() {
       </form>
 
     </Box>
-
-    <Snackbar
-      open={snack}
-      autoHideDuration={1500}
-      onClose={() => setSnack(false)}
-      anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-    >
-      <Alert onClose={() => setSnack(false)} severity="success" variant="filled" sx={{ borderRadius: 2 }}>
-        Booking created successfully
-      </Alert>
-    </Snackbar>
-    </>
   );
 }
