@@ -36,14 +36,16 @@ namespace IIAPI.Controllers
         private readonly BookingService _bookingService;
         private readonly EmailService _emailService;
         private readonly SqodService _sqodService;
+        private readonly IConfiguration _config;
 
-        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService)
+        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, IConfiguration config)
         {
             _context = context;
             _userManager = userManager;
             _bookingService = bookingService;
             _emailService = emailService;
             _sqodService = sqodService;
+            _config = config;
         }
 
         // GET: api/bookings
