@@ -10,5 +10,6 @@ namespace IIAPI.Models
         public int? CompanyId { get; set; }
         public List<string> Roles { get; set; }
         public bool EmailConfirmed { get; set; }
+        public bool IsAtw { get; set; }
     }
 }

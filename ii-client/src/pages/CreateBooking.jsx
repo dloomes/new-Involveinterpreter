@@ -18,6 +18,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import BusinessIcon from "@mui/icons-material/Business";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { useNavigate } from "react-router-dom";
 import api from "../api";
 import { useAuth } from "../AuthContext";
@@ -49,6 +50,7 @@ export default function CreateBooking() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isAdmin = user?.roles?.includes("Admin");
+  const isCustomerAtw = user?.isAtw === true;
   const [urlCopied, setUrlCopied] = useState(false);
 
   const handleCopyUrl = () => {
@@ -68,6 +70,13 @@ export default function CreateBooking() {
     VideoURL: "",
     DurationId: "",
     BookingType: "",
+    DeafName: "",
+    ProfessionalName: "",
+    ProfessionalEmail: "",
+    CustomerRef: "",
+    Attendees: "",
+    PrepContactName: "",
+    PrepContactEmail: "",
   });
 
   const [durations, setDurations] = useState([]);
@@ -111,6 +120,14 @@ export default function CreateBooking() {
         )
     : [];
 
+  // ATW: for customers use user.isAtw; for admin use selected customer's vriatw flag
+  const selectedCustomer = customers.find((c) => String(c.id) === String(selectedCustomerId));
+  const isAtw = isAdmin ? selectedCustomer?.vriatw === true : isCustomerAtw;
+
+  // Show extra fields when booking type is Team/Group Meeting or Event/Webinar
+  const selectedTypeName = bookingTypes.find((t) => String(t.id) === String(form.BookingType))?.bookingType ?? "";
+  const isGroupOrEvent = /team|group|event|webinar/i.test(selectedTypeName);
+
   const handleCustomerChange = (e) => {
     setSelectedCustomerId(e.target.value);
     setSelectedUserId("");
@@ -143,10 +160,6 @@ export default function CreateBooking() {
     }
 
     try {
-      const selectedCustomer = customers.find(
-        (c) => String(c.id) === String(selectedCustomerId),
-      );
-
       const payload = {
         ContactEmail: form.ContactEmail,
         ContactNumber: form.ContactNumber,
@@ -156,6 +169,13 @@ export default function CreateBooking() {
         VideoUrl: form.VideoURL,
         DurationId: Number(form.DurationId),
         BookingType: Number(form.BookingType),
+        DeafName: form.DeafName || null,
+        ProfessionalName: form.ProfessionalName || null,
+        ProfessionalEmail: form.ProfessionalEmail || null,
+        CustomerRef: form.CustomerRef || null,
+        Attendees: form.Attendees ? Number(form.Attendees) : null,
+        PrepContactName: form.PrepContactName || null,
+        PrepContactEmail: form.PrepContactEmail || null,
         ...(isAdmin && {
           UserId: selectedUserId,
           CustId: selectedCustomer?.id ?? null,
@@ -358,6 +378,73 @@ export default function CreateBooking() {
           </CardContent>
         </Card>
 
+        {/* ── Team/Event conditional fields ── */}
+        {isGroupOrEvent && (
+          <Card
+            elevation={0}
+            sx={{ borderRadius: 3, border: "1px solid #e2e8f0", mb: 3 }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <SectionHeading>Event details</SectionHeading>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  label="Number of attendees"
+                  name="Attendees"
+                  type="number"
+                  value={form.Attendees}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                  InputProps={{ inputProps: { min: 1 } }}
+                />
+              </Box>
+
+              <Typography
+                variant="overline"
+                sx={{
+                  color: "#64748b", fontWeight: 700, fontSize: "0.7rem",
+                  letterSpacing: "0.1em", mt: 3, mb: 2, display: "block",
+                }}
+              >
+                Prep material / agenda / slides contact
+              </Typography>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  label="Contact name"
+                  name="PrepContactName"
+                  value={form.PrepContactName}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                />
+                <TextField
+                  fullWidth
+                  label="Contact email address"
+                  name="PrepContactEmail"
+                  type="email"
+                  value={form.PrepContactEmail}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        )}
+
         {/* ── Contact details ── */}
         <Card
           elevation={0}
@@ -412,6 +499,52 @@ export default function CreateBooking() {
             </Box>
           </CardContent>
         </Card>
+
+        {/* ── Attendees (non-ATW only) ── */}
+        {!isAtw && (
+          <Card
+            elevation={0}
+            sx={{ borderRadius: 3, border: "1px solid #e2e8f0", mb: 3 }}
+          >
+            <CardContent sx={{ p: 3 }}>
+              <SectionHeading>Attendees</SectionHeading>
+
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <TextField
+                  fullWidth
+                  label="Professional name"
+                  name="ProfessionalName"
+                  value={form.ProfessionalName}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                />
+                <TextField
+                  fullWidth
+                  label="Professional email address"
+                  name="ProfessionalEmail"
+                  type="email"
+                  value={form.ProfessionalEmail}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                />
+                <TextField
+                  fullWidth
+                  label="Deaf attendee name"
+                  name="DeafName"
+                  value={form.DeafName}
+                  onChange={handleChange}
+                  sx={fieldSx}
+                />
+              </Box>
+            </CardContent>
+          </Card>
+        )}
 
         {/* ── URL details ── */}
         <Card
@@ -471,6 +604,25 @@ export default function CreateBooking() {
                 {urlCopied ? "Copied!" : "Copy URL"}
               </Button>
             </Box>
+          </CardContent>
+        </Card>
+
+        {/* ── Customer Booking Ref/PO ── */}
+        <Card
+          elevation={0}
+          sx={{ borderRadius: 3, border: "1px solid #e2e8f0", mb: 3 }}
+        >
+          <CardContent sx={{ p: 3 }}>
+            <SectionHeading>Customer reference</SectionHeading>
+
+            <TextField
+              fullWidth
+              label="Customer Booking Ref / PO (if applicable)"
+              name="CustomerRef"
+              value={form.CustomerRef}
+              onChange={handleChange}
+              sx={fieldSx}
+            />
           </CardContent>
         </Card>
 

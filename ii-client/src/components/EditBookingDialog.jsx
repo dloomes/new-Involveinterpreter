@@ -50,9 +50,13 @@ const SectionHeading = ({ children }) => (
 export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
   const { user } = useAuth();
   const isAdmin = user?.roles?.includes("Admin");
+  const isCustomerAtw = user?.isAtw === true;
+  const [isAtw, setIsAtw] = useState(false);
   const [form, setForm] = useState({
     date: "", time: "", durationId: "", bookingType: "",
     contactEmail: "", contactNumber: "", videoUrl: "", addInfo: "",
+    deafName: "", professionalName: "", professionalEmail: "",
+    customerRef: "", attendees: "", prepContactName: "", prepContactEmail: "",
   });
   const [durations, setDurations] = useState([]);
   const [bookingTypes, setBookingTypes] = useState([]);
@@ -107,15 +111,35 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
           contactNumber: b.contactNumber ?? "",
           videoUrl: b.videoUrl ?? "",
           addInfo: b.notes ?? "",
+          deafName: b.deafName ?? "",
+          professionalName: b.professionalName ?? "",
+          professionalEmail: b.professionalEmail ?? "",
+          customerRef: b.customerRef ?? "",
+          attendees: b.attendees ?? "",
+          prepContactName: b.prepContactName ?? "",
+          prepContactEmail: b.prepContactEmail ?? "",
         });
         setDurations(durRes.data);
         setBookingTypes(typeRes.data);
+
+        // Determine ATW: for admin look up customer, for customer use user flag
+        if (isAdmin && b.custId) {
+          api.get(`/customers/${b.custId}`)
+            .then((r) => setIsAtw(r.data.vriatw === true))
+            .catch(() => setIsAtw(false));
+        } else {
+          setIsAtw(isCustomerAtw);
+        }
       })
       .catch(() => setFetchError("Failed to load booking details."))
       .finally(() => setLoading(false));
   }, [bookingId, open]);
 
   const handleChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
+  // Show extra fields when booking type is Team/Group Meeting or Event/Webinar
+  const selectedTypeName = bookingTypes.find((t) => String(t.id) === String(form.bookingType))?.bookingType ?? "";
+  const isGroupOrEvent = /team|group|event|webinar/i.test(selectedTypeName);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -131,6 +155,13 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
         ContactNumber: form.contactNumber,
         VideoUrl: form.videoUrl,
         AddInfo: form.addInfo,
+        DeafName: form.deafName || null,
+        ProfessionalName: form.professionalName || null,
+        ProfessionalEmail: form.professionalEmail || null,
+        CustomerRef: form.customerRef || null,
+        Attendees: form.attendees ? Number(form.attendees) : null,
+        PrepContactName: form.prepContactName || null,
+        PrepContactEmail: form.prepContactEmail || null,
       });
       onSaved("Booking updated successfully");
       onClose();
@@ -364,6 +395,39 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                   </Box>
                 </Box>
 
+                {/* Team/Event conditional fields */}
+                {isGroupOrEvent && (
+                  <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
+                    <SectionHeading>Event details</SectionHeading>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                      <TextField
+                        label="Number of attendees" name="attendees" type="number" size="small"
+                        value={form.attendees} onChange={handleChange} sx={fieldSx}
+                        InputProps={{ inputProps: { min: 1 } }}
+                      />
+                    </Box>
+                    <Typography
+                      variant="overline"
+                      sx={{
+                        color: "#64748b", fontWeight: 700, fontSize: "0.7rem",
+                        letterSpacing: "0.1em", mt: 2.5, mb: 1.5, display: "block",
+                      }}
+                    >
+                      Prep material / agenda / slides contact
+                    </Typography>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                      <TextField
+                        label="Contact name" name="prepContactName" size="small"
+                        value={form.prepContactName} onChange={handleChange} sx={fieldSx}
+                      />
+                      <TextField
+                        label="Contact email" name="prepContactEmail" type="email" size="small"
+                        value={form.prepContactEmail} onChange={handleChange} sx={fieldSx}
+                      />
+                    </Box>
+                  </Box>
+                )}
+
                 {/* Contact */}
                 <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
                   <SectionHeading>Contact details</SectionHeading>
@@ -378,6 +442,27 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                     />
                   </Box>
                 </Box>
+
+                {/* Attendees (non-ATW only) */}
+                {!isAtw && (
+                  <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
+                    <SectionHeading>Attendees</SectionHeading>
+                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                      <TextField
+                        label="Professional name" name="professionalName" size="small"
+                        value={form.professionalName} onChange={handleChange} sx={fieldSx}
+                      />
+                      <TextField
+                        label="Professional email" name="professionalEmail" type="email" size="small"
+                        value={form.professionalEmail} onChange={handleChange} sx={fieldSx}
+                      />
+                      <TextField
+                        label="Deaf attendee name" name="deafName" size="small"
+                        value={form.deafName} onChange={handleChange} sx={fieldSx}
+                      />
+                    </Box>
+                  </Box>
+                )}
 
                 {/* Video link */}
                 <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
@@ -414,6 +499,16 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                   >
                     {urlCopied ? "Copied!" : "Copy URL"}
                   </Button>
+                </Box>
+
+                {/* Customer Ref */}
+                <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
+                  <SectionHeading>Customer reference</SectionHeading>
+                  <TextField
+                    fullWidth label="Customer Booking Ref / PO (if applicable)"
+                    name="customerRef" size="small"
+                    value={form.customerRef} onChange={handleChange} sx={fieldSx}
+                  />
                 </Box>
 
                 {/* Notes */}

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 using System.Text;
 using IIAPI.Models;
+using IIAPI.Data;
 using Microsoft.EntityFrameworkCore;
 
 [Route("api/[controller]")]
@@ -17,19 +18,22 @@ public class AuthController : ControllerBase
     private readonly IConfiguration _config;
     private readonly EmailService _emailService;
     private readonly IWebHostEnvironment _env;
+    private readonly ApplicationDbContext _context;
 
     public AuthController(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IConfiguration config,
         EmailService emailService,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        ApplicationDbContext context)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _config = config;
         _emailService = emailService;
         _env = env;
+        _context = context;
     }
 
     private string? GetLogoDataUri()
@@ -289,6 +293,14 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
 
             var roles = await _userManager.GetRolesAsync(user);
 
+        // Look up ATW flag from the customer record
+        bool isAtw = false;
+        if (user.CompanyId > 0)
+        {
+            var customer = await _context.Customers.FindAsync(user.CompanyId);
+            isAtw = customer?.VRIATW == true;
+        }
+
         return Ok(new UserDto
     {
         Id = user.Id,
@@ -297,7 +309,8 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
         FirstName = user.FirstName,
         LastName = user.LastName,
         CompanyId = user.CompanyId,
-        Roles = roles.ToList()
+        Roles = roles.ToList(),
+        IsAtw = isAtw
     });
 }
 [Authorize]

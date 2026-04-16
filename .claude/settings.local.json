@@ -7,7 +7,8 @@
       "Bash(curl -s \"https://dloomes.github.io/sqodapi/openapi.json\")",
       "Bash(python3 -c \"import json,sys; spec=json.load\\(sys.stdin\\); schemas=spec.get\\('components',{}\\).get\\('schemas',{}\\); print\\(json.dumps\\(schemas.get\\('AppointmentResource',{}\\), indent=2\\)\\); print\\('---CLAIMANT---'\\); print\\(json.dumps\\(schemas.get\\('Claimant',{}\\), indent=2\\)\\)\")",
       "Bash(python3 -c \"import json,sys; spec=json.load\\(sys.stdin\\); schemas=spec.get\\('components',{}\\).get\\('schemas',{}\\); print\\(list\\(schemas.keys\\(\\)\\)\\)\")",
-      "Bash(python3 -c ':*)"
+      "Bash(python3 -c ':*)",
+      "Bash(dotnet build *)"
     ]
   }
 }

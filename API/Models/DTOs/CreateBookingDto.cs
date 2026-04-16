@@ -40,6 +40,11 @@ namespace IIAPI.Models.DTOs
         public string? customerURL { get; set; }
         public string? DeafName { get; set; }
         public bool? material { get; set; }
+        public string? ProfessionalName { get; set; }
+        public string? ProfessionalEmail { get; set; }
+        public string? CustomerRef { get; set; }
+        public string? PrepContactName { get; set; }
+        public string? PrepContactEmail { get; set; }
         
     }
 }

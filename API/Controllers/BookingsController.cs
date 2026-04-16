@@ -177,7 +177,15 @@ namespace IIAPI.Controllers
                 booking.AddedByAdmin,
                 booking.OutlookID,
                 booking.VideoUrl,
-                booking.customerURL
+                booking.customerURL,
+                booking.DeafName,
+                booking.ProfessionalName,
+                booking.ProfessionalEmail,
+                booking.CustomerRef,
+                booking.Attendees,
+                booking.PrepContactName,
+                booking.PrepContactEmail,
+                booking.CustId
             };
 
             Console.WriteLine("Booking returned successfully");
@@ -221,7 +229,14 @@ namespace IIAPI.Controllers
                     ContactNumber = dto.ContactNumber,
                     BookingDate = dto.BookingDate,
                     BookingTime = dto.BookingTime,
-                    VideoUrl = dto.VideoUrl
+                    VideoUrl = dto.VideoUrl,
+                    DeafName = dto.DeafName,
+                    ProfessionalName = dto.ProfessionalName,
+                    ProfessionalEmail = dto.ProfessionalEmail,
+                    CustomerRef = dto.CustomerRef,
+                    Attendees = dto.Attendees,
+                    PrepContactName = dto.PrepContactName,
+                    PrepContactEmail = dto.PrepContactEmail
                 };
                 _context.Bookings.Add(booking);
                 await _context.SaveChangesAsync();
@@ -256,6 +271,7 @@ namespace IIAPI.Controllers
                 {
                     var custName = customerUser.FirstName ?? customerUser.Email;
                     var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                    var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
                     FireBookingNotification(booking,
                         customerEmail: customerUser.Email,
                         customerName: custName,
@@ -264,7 +280,8 @@ namespace IIAPI.Controllers
                         customerIntro: "Thank you for your booking. We have received your request and will be in touch shortly to confirm your interpreter.",
                         adminSubject: $"New booking #{booking.BookingId} — {custName}",
                         adminIntro: $"A new booking has been submitted by <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.",
-                        duration: dur, bookingType: bType
+                        duration: dur, bookingType: bType,
+                        companyName: company?.Name
                     );
                 }
 
@@ -330,6 +347,13 @@ namespace IIAPI.Controllers
             booking.ContactNumber = dto.ContactNumber;
             booking.AddInfo = dto.AddInfo;
             booking.VideoUrl = dto.VideoUrl;
+            booking.DeafName = dto.DeafName;
+            booking.ProfessionalName = dto.ProfessionalName;
+            booking.ProfessionalEmail = dto.ProfessionalEmail;
+            booking.CustomerRef = dto.CustomerRef;
+            booking.Attendees = dto.Attendees;
+            booking.PrepContactName = dto.PrepContactName;
+            booking.PrepContactEmail = dto.PrepContactEmail;
 
             await _context.SaveChangesAsync();
 
@@ -357,6 +381,7 @@ namespace IIAPI.Controllers
             {
                 var custName = customerUser.FirstName ?? customerUser.Email;
                 var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
@@ -365,7 +390,8 @@ namespace IIAPI.Controllers
                     customerIntro: "Your booking details have been updated. Please see the summary below.",
                     adminSubject: $"Booking #{booking.BookingId} updated — {custName}",
                     adminIntro: $"Booking #{booking.BookingId} has been updated for <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.",
-                    duration: dur, bookingType: bType
+                    duration: dur, bookingType: bType,
+                    companyName: company?.Name
                 );
             }
 
@@ -558,6 +584,8 @@ namespace IIAPI.Controllers
                 var admins = (await _userManager.GetUsersInRoleAsync("Admin")).ToList();
 
                 var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                var compName = company?.Name;
 
                 // Notify customer and admins
                 if (customerUser?.Email != null)
@@ -578,7 +606,8 @@ namespace IIAPI.Controllers
                         customerIntro: custIntro,
                         adminSubject: $"Interpreter assigned — Booking #{booking.BookingId}",
                         adminIntro: adminIntro,
-                        duration: dur, bookingType: bType
+                        duration: dur, bookingType: bType,
+                        companyName: compName
                     );
                 }
 
@@ -597,7 +626,12 @@ namespace IIAPI.Controllers
                     var intro = $"You have been assigned as an interpreter for a booking on behalf of <strong>{customerName}</strong>.";
                     var html = BuildBookingEmail(interpName, subject, intro, booking.BookingId, date, time,
                         duration: dur, bookingType: bType,
-                        videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail);
+                        videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail,
+                        companyName: compName, contactName: booking.ContactName,
+                        deafName: booking.DeafName, professionalName: booking.ProfessionalName,
+                        professionalEmail: booking.ProfessionalEmail, customerRef: booking.CustomerRef,
+                        addInfo: booking.AddInfo, attendees: booking.Attendees,
+                        prepContactName: booking.PrepContactName, prepContactEmail: booking.PrepContactEmail);
                     _ = Task.Run(async () =>
                     {
                         try { await _emailService.SendAsync(interpreter.Email, subject, html); }
@@ -710,7 +744,12 @@ namespace IIAPI.Controllers
             string recipientName, string heading, string intro,
             int bookingId, string date, string time,
             string? duration = null, string? bookingType = null,
-            string? videoUrl = null, string? contactEmail = null)
+            string? videoUrl = null, string? contactEmail = null,
+            string? companyName = null, string? contactName = null,
+            string? deafName = null, string? professionalName = null,
+            string? professionalEmail = null, string? customerRef = null,
+            string? addInfo = null, int? attendees = null,
+            string? prepContactName = null, string? prepContactEmail = null)
         {
             // Build optional extra rows — alternating colours continuing from Time row
             var logoSrc = GetLogoDataUri() ?? "";
@@ -730,10 +769,26 @@ namespace IIAPI.Controllers
                 <td bgcolor=""{bg}"" style=""padding:10px 14px;border:1px solid #e2e8f0;border-left:none;border-top:none;"">{cell}</td>
               </tr>");
             }
+            AddRow("Company",       companyName);
             AddRow("Duration",      duration);
             AddRow("Booking type",  bookingType);
-            AddRow("Video URL",     videoUrl,     isLink: true);
+            AddRow("Contact name",  contactName);
             AddRow("Contact email", contactEmail);
+            AddRow("Deaf attendee", deafName);
+            AddRow("Professional name",  professionalName);
+            AddRow("Professional email", professionalEmail);
+            AddRow("Customer Ref/PO",    customerRef);
+            AddRow("Video URL",     videoUrl,     isLink: true);
+            AddRow("Additional info", addInfo);
+
+            // Conditional group/event fields
+            var isGroupOrEvent = bookingType != null && System.Text.RegularExpressions.Regex.IsMatch(bookingType, @"team|group|event|webinar", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (isGroupOrEvent)
+            {
+                AddRow("Number of attendees", attendees?.ToString());
+                AddRow("Prep contact name",   prepContactName);
+                AddRow("Prep contact email",  prepContactEmail);
+            }
 
             return $@"
 <!DOCTYPE html>
@@ -823,7 +878,8 @@ namespace IIAPI.Controllers
             IList<ApplicationUser> admins,
             string customerSubject, string customerIntro,
             string adminSubject, string adminIntro,
-            string? duration = null, string? bookingType = null)
+            string? duration = null, string? bookingType = null,
+            string? companyName = null)
         {
             var date = booking.BookingDate.HasValue
                 ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy")
@@ -834,12 +890,24 @@ namespace IIAPI.Controllers
             var id       = booking.BookingId;
             var videoUrl = booking.VideoUrl;
             var contactEmail = booking.ContactEmail;
+            var contactName  = booking.ContactName;
+            var deafName     = booking.DeafName;
+            var profName     = booking.ProfessionalName;
+            var profEmail    = booking.ProfessionalEmail;
+            var custRef      = booking.CustomerRef;
+            var addInfo      = booking.AddInfo;
+            var attendees    = booking.Attendees;
+            var prepName     = booking.PrepContactName;
+            var prepEmail    = booking.PrepContactEmail;
 
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    var html = BuildBookingEmail(customerName, customerSubject, customerIntro, id, date, time, duration, bookingType, videoUrl, contactEmail);
+                    var html = BuildBookingEmail(customerName, customerSubject, customerIntro, id, date, time,
+                        duration, bookingType, videoUrl, contactEmail,
+                        companyName, contactName, deafName, profName, profEmail,
+                        custRef, addInfo, attendees, prepName, prepEmail);
                     await _emailService.SendAsync(customerEmail, customerSubject, html);
                 }
                 catch (Exception ex) { Console.WriteLine($"[Email] Booking customer notification failed: {ex.Message}"); }
@@ -850,7 +918,10 @@ namespace IIAPI.Controllers
                     try
                     {
                         var adminName = admin.FirstName ?? "Admin";
-                        var html = BuildBookingEmail(adminName, adminSubject, adminIntro, id, date, time, duration, bookingType, videoUrl, contactEmail);
+                        var html = BuildBookingEmail(adminName, adminSubject, adminIntro, id, date, time,
+                            duration, bookingType, videoUrl, contactEmail,
+                            companyName, contactName, deafName, profName, profEmail,
+                            custRef, addInfo, attendees, prepName, prepEmail);
                         await _emailService.SendAsync(admin.Email, adminSubject, html);
                     }
                     catch (Exception ex) { Console.WriteLine($"[Email] Booking admin notification failed: {ex.Message}"); }
@@ -899,6 +970,7 @@ namespace IIAPI.Controllers
             {
                 var custName = customerUser.FirstName ?? customerUser.Email;
                 var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
@@ -907,7 +979,8 @@ namespace IIAPI.Controllers
                     customerIntro: "Unfortunately, we were unable to fulfil your booking request. Please contact us if you have any questions or would like to make an alternative arrangement.",
                     adminSubject: "",
                     adminIntro: "",
-                    duration: dur, bookingType: bType);
+                    duration: dur, bookingType: bType,
+                    companyName: company?.Name);
             }
 
             return Ok();
