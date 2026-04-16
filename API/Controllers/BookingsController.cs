@@ -436,6 +436,27 @@ namespace IIAPI.Controllers
                 _ = _sqodService.CancelAppointmentAsync(booking.SqodAppointmentId, "Booking cancelled via BSL portal");
             }
 
+            // Send cancellation email notifications
+            var customerUser = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
+            var admins = (await _userManager.GetUsersInRoleAsync("Admin")).ToList();
+            if (customerUser?.Email != null)
+            {
+                var custName = customerUser.FirstName ?? customerUser.Email;
+                var cancelledBy = roles.Contains("Admin") ? "an administrator" : "you";
+                var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                FireBookingNotification(booking,
+                    customerEmail: customerUser.Email,
+                    customerName: custName,
+                    admins: admins,
+                    customerSubject: $"Booking #{booking.BookingId} — Cancelled",
+                    customerIntro: $"Your booking has been cancelled by {cancelledBy}. If this was unexpected, please contact us.",
+                    adminSubject: $"Booking #{booking.BookingId} cancelled — {custName}",
+                    adminIntro: $"Booking #{booking.BookingId} for <strong>{customerUser.FirstName} {customerUser.LastName}</strong> has been cancelled.",
+                    duration: dur, bookingType: bType,
+                    companyName: company?.Name);
+            }
+
             return Ok();
         }
 

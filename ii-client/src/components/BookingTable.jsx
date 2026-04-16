@@ -112,6 +112,8 @@ const baseBookingColumns = [
   },
 ];
 
+const customerColumn = { field: "customer", headerName: "Customer", flex: 1 };
+
 export default function BookingTable({
   title,
   subtitle,
@@ -145,7 +147,8 @@ export default function BookingTable({
 
   const isCancelled = selected?.status?.toLowerCase() === "cancelled";
 
-  const columns = [...extraColumns, ...baseBookingColumns];
+  const showCustomer = isAdmin || user?.roles?.includes("Interpreter");
+  const columns = [...extraColumns, ...(showCustomer ? [customerColumn] : []), ...baseBookingColumns];
 
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto" }}>
@@ -214,6 +217,7 @@ export default function BookingTable({
           {selected && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
               <DetailRow label="Status" value={statusChip(selected.status || selected.bookingStatus)} />
+              {selected.customer && <DetailRow label="Customer" value={selected.customer} />}
               {selected.fullName && <DetailRow label="Contact" value={selected.fullName} />}
               {selected.contactEmail && <DetailRow label="Email" value={selected.contactEmail} />}
               <DetailRow

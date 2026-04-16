@@ -6,7 +6,6 @@ import BookingTable from "../components/BookingTable";
 const adminColumns = [
   { field: "bookingId", headerName: "ID", width: 70 },
   { field: "fullName", headerName: "Contact", flex: 1 },
-  { field: "customer", headerName: "Customer", flex: 1 },
   { field: "int1", headerName: "Int 1", flex: 1 },
   { field: "int2", headerName: "Int 2", flex: 1 },
   {
