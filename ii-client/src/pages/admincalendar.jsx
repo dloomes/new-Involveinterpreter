@@ -28,10 +28,12 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 
 // Colour map keyed on lowercase status string
 const STATUS_COLOURS = {
-  confirmed:  { bg: "#059669", border: "#047857", chip: "#dcfce7", chipText: "#166534" },
+  ready:  { bg: "#059669", border: "#047857", chip: "#dcfce7", chipText: "#166534" },
   pending:    { bg: "#d97706", border: "#b45309", chip: "#fff7ed", chipText: "#9a3412" },
   cancelled:  { bg: "#dc2626", border: "#b91c1c", chip: "#fee2e2", chipText: "#991b1b" },
-  completed:  { bg: "#7c3aed", border: "#6d28d9", chip: "#f5f3ff", chipText: "#5b21b6" },
+  assigning:  { bg: "#7c3aed", border: "#6d28d9", chip: "#f5f3ff", chipText: "#5b21b6" },
+  unfulfilled:  { bg: "#003366", border: "#002244", chip: "#eff6ff", chipText: "#1e40af" },
+  complete:  { bg: "#36a1d6", border: "#36a1d6", chip: "#eff6ff", chipText: "#36a1d6" },
 };
 
 const DEFAULT_COLOUR = { bg: "#003366", border: "#002244", chip: "#eff6ff", chipText: "#1e40af" };
@@ -207,6 +209,12 @@ export default function AdminCalendar() {
             height="auto"
             contentHeight={600}
             dayMaxEvents={3}
+            slotMinTime="07:00:00"
+            slotMaxTime="22:00:00"
+            allDaySlot={false}
+            nowIndicator={true}
+            slotEventOverlap={false}
+            eventDisplay="block"
           />
         )}
       </Box>
