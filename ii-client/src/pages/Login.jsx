@@ -9,6 +9,8 @@ import {
   InputAdornment,
   IconButton,
   CircularProgress,
+  Checkbox,
+  FormControlLabel,
 } from "@mui/material";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import Visibility from "@mui/icons-material/Visibility";
@@ -24,6 +26,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
 
   // Forgot password state
@@ -37,7 +40,7 @@ export default function Login() {
     event.preventDefault();
     setError("");
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
       navigate("/", { replace: true });
     } catch {
       setError("Invalid email or password.");
@@ -293,7 +296,23 @@ export default function Login() {
                     }}
                     sx={{ "& .MuiOutlinedInput-root": { borderRadius: 2, bgcolor: "#fff" } }}
                   />
-                  <Box sx={{ textAlign: "right", mt: 0.75 }}>
+                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mt: 0.75 }}>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={rememberMe}
+                          onChange={(e) => setRememberMe(e.target.checked)}
+                          sx={{ color: "#94a3b8", "&.Mui-checked": { color: "#0c6ea6" } }}
+                        />
+                      }
+                      label={
+                        <Typography variant="body2" sx={{ color: "#64748b", fontSize: "0.8rem" }}>
+                          Remember me
+                        </Typography>
+                      }
+                      sx={{ m: 0 }}
+                    />
                     <Button
                       variant="text" size="small"
                       onClick={() => { setForgotMode(true); setForgotEmail(email); }}

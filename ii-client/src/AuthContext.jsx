@@ -31,8 +31,8 @@ export function AuthProvider({ children }) {
     fetchMe();
   }, []);
 
-  const login = async (email, password) => {
-    await api.post("/auth/login", { email, password });
+  const login = async (email, password, rememberMe = false) => {
+    await api.post("/auth/login", { email, password, rememberMe });
     await fetchMe();
   };
 

@@ -116,10 +116,14 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
     // ✅ ADD ROLES TO JWT
     claims.AddRange(roles.Select(role => new Claim(ClaimTypes.Role, role)));
 
+    var expiry = model.RememberMe
+        ? DateTime.UtcNow.AddDays(30)
+        : DateTime.UtcNow.AddHours(8);
+
     var tokenDescriptor = new SecurityTokenDescriptor
     {
         Subject = new ClaimsIdentity(claims),
-        Expires = DateTime.UtcNow.AddDays(7),
+        Expires = expiry,
         Issuer = _config["Jwt:Issuer"],
         Audience = _config["Jwt:Audience"],
         SigningCredentials = new SigningCredentials(
@@ -131,14 +135,17 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
     var tokenString = tokenHandler.WriteToken(token);
 
     var isDev = _env.IsDevelopment();
-    Response.Cookies.Append("access_token", tokenString, new CookieOptions
+    var cookieOptions = new CookieOptions
     {
         HttpOnly = true,
         Secure = !isDev,
         SameSite = isDev ? SameSiteMode.Lax : SameSiteMode.None,
         Path = "/",
-        Expires = DateTime.UtcNow.AddDays(7)
-    });
+    };
+    // Session cookie (no Expires) when not "remember me" — cookie dies when browser closes.
+    // Persistent cookie matching the token lifetime when "remember me" is checked.
+    if (model.RememberMe) cookieOptions.Expires = expiry;
+    Response.Cookies.Append("access_token", tokenString, cookieOptions);
 
     return Ok(new { message = "Login successful" });
 }

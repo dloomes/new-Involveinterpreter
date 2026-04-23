@@ -61,22 +61,40 @@ public class GraphCalendarService
             lines.Add($"<li><strong>Company:</strong> {System.Net.WebUtility.HtmlEncode(companyName)}</li>");
         if (customer != null)
             lines.Add($"<li><strong>Requestor:</strong> {System.Net.WebUtility.HtmlEncode($"{customer.FirstName} {customer.LastName}".Trim())}</li>");
+        if (!string.IsNullOrWhiteSpace(booking.OnBehalfUser))
+            lines.Add($"<li><strong>On behalf of:</strong> {System.Net.WebUtility.HtmlEncode(booking.OnBehalfUser)}</li>");
         if (!string.IsNullOrWhiteSpace(bookingTypeLabel))
             lines.Add($"<li><strong>Type:</strong> {System.Net.WebUtility.HtmlEncode(bookingTypeLabel)}</li>");
         if (!string.IsNullOrWhiteSpace(durationLabel))
             lines.Add($"<li><strong>Duration:</strong> {System.Net.WebUtility.HtmlEncode(durationLabel)}</li>");
+        if (booking.prep.HasValue && booking.prep.Value > 0)
+            lines.Add($"<li><strong>Prep time:</strong> {booking.prep.Value} mins</li>");
         if (!string.IsNullOrWhiteSpace(booking.DeafName))
             lines.Add($"<li><strong>Deaf attendee:</strong> {System.Net.WebUtility.HtmlEncode(booking.DeafName)}</li>");
+        if (booking.deafattendees.HasValue && booking.deafattendees.Value > 0)
+            lines.Add($"<li><strong>Deaf attendees:</strong> {booking.deafattendees.Value}</li>");
+        if (booking.Attendees.HasValue && booking.Attendees.Value > 0)
+            lines.Add($"<li><strong>Total attendees:</strong> {booking.Attendees.Value}</li>");
         if (!string.IsNullOrWhiteSpace(booking.ProfessionalName))
             lines.Add($"<li><strong>Professional:</strong> {System.Net.WebUtility.HtmlEncode(booking.ProfessionalName)}</li>");
+        if (!string.IsNullOrWhiteSpace(booking.ProfessionalEmail))
+            lines.Add($"<li><strong>Professional email:</strong> {System.Net.WebUtility.HtmlEncode(booking.ProfessionalEmail)}</li>");
         if (!string.IsNullOrWhiteSpace(booking.ContactName))
             lines.Add($"<li><strong>Contact:</strong> {System.Net.WebUtility.HtmlEncode(booking.ContactName)}</li>");
         if (!string.IsNullOrWhiteSpace(booking.ContactEmail))
             lines.Add($"<li><strong>Contact email:</strong> {System.Net.WebUtility.HtmlEncode(booking.ContactEmail)}</li>");
         if (!string.IsNullOrWhiteSpace(booking.ContactNumber))
             lines.Add($"<li><strong>Contact number:</strong> {System.Net.WebUtility.HtmlEncode(booking.ContactNumber)}</li>");
+        if (!string.IsNullOrWhiteSpace(booking.AddEmail))
+            lines.Add($"<li><strong>Additional email:</strong> {System.Net.WebUtility.HtmlEncode(booking.AddEmail)}</li>");
+        if (!string.IsNullOrWhiteSpace(booking.PrepContactName))
+            lines.Add($"<li><strong>Prep contact:</strong> {System.Net.WebUtility.HtmlEncode(booking.PrepContactName)}</li>");
+        if (!string.IsNullOrWhiteSpace(booking.PrepContactEmail))
+            lines.Add($"<li><strong>Prep contact email:</strong> {System.Net.WebUtility.HtmlEncode(booking.PrepContactEmail)}</li>");
         if (!string.IsNullOrWhiteSpace(booking.CustomerRef))
             lines.Add($"<li><strong>Customer ref:</strong> {System.Net.WebUtility.HtmlEncode(booking.CustomerRef)}</li>");
+        if (booking.material == true)
+            lines.Add($"<li><strong>Material required:</strong> Yes</li>");
         if (!string.IsNullOrWhiteSpace(booking.VideoUrl))
             lines.Add($"<li><strong>Video link:</strong> <a href=\"{System.Net.WebUtility.HtmlEncode(booking.VideoUrl)}\">{System.Net.WebUtility.HtmlEncode(booking.VideoUrl)}</a></li>");
         if (interpreters.Count > 0)
@@ -89,6 +107,9 @@ public class GraphCalendarService
 
         if (!string.IsNullOrWhiteSpace(booking.AddInfo))
             lines.Add($"<p><strong>Additional info:</strong><br/>{System.Net.WebUtility.HtmlEncode(booking.AddInfo).Replace("\n", "<br/>")}</p>");
+
+        if (!string.IsNullOrWhiteSpace(booking.InterpreterNotes))
+            lines.Add($"<p><strong>Interpreter notes:</strong><br/>{System.Net.WebUtility.HtmlEncode(booking.InterpreterNotes).Replace("\n", "<br/>")}</p>");
 
         return string.Concat(lines);
     }
