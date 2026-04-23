@@ -1189,6 +1189,129 @@ namespace IIAPI.Controllers
             return Ok(data);
         }
 
+        [HttpGet("billable-report")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> BillableReport([FromQuery] DateTime from, [FromQuery] DateTime to)
+        {
+            var fromDate    = from.Date;
+            var toExclusive = to.Date.AddDays(1);
+
+            const string sql = @"
+                SELECT
+                  b.BookingId, b.CustId, b.UserId, b.Interpreter1, b.Interpreter2,
+                  b.BookingDate, b.BookingTime, b.DurationId, b.BookingType AS BookingTypeId,
+                  b.BookingStatus, b.CancelDate, b.NoShow, b.ActualMins, b.DateAdded,
+                  c.Name AS CompanyName,
+                  u.FirstName AS ReqFirst, u.LastName AS ReqLast,
+                  i1.FirstName AS Int1First, i1.LastName AS Int1Last,
+                  i2.FirstName AS Int2First, i2.LastName AS Int2Last,
+                  d.DurationValue,
+                  bt.BookingType AS BookingTypeLabel,
+                  s.Status AS StatusLabel
+                FROM Booking b
+                LEFT JOIN Customer c       ON c.Id = b.CustId
+                LEFT JOIN AspNetUsers u    ON u.Id = b.UserId
+                LEFT JOIN AspNetUsers i1   ON i1.Id = b.Interpreter1
+                LEFT JOIN AspNetUsers i2   ON i2.Id = b.Interpreter2
+                LEFT JOIN Duration d       ON d.Id = b.DurationId
+                LEFT JOIN BookingType bt   ON bt.Id = b.BookingType
+                LEFT JOIN BookingStatus s  ON s.Id = b.BookingStatus
+                WHERE b.BookingDate >= @from AND b.BookingDate < @toExclusive
+                  AND (
+                        s.Status LIKE '%Complete%'
+                     OR (s.Status LIKE '%Cancel%'
+                         AND (b.Interpreter1 IS NOT NULL OR b.Interpreter2 IS NOT NULL))
+                  )
+                ORDER BY b.BookingDate DESC, b.BookingTime DESC";
+
+            var results = new List<object>();
+            var connectionString = _context.Database.GetConnectionString();
+            using var conn = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
+            await conn.OpenAsync();
+            using var cmd = new Microsoft.Data.SqlClient.SqlCommand(sql, conn);
+            cmd.Parameters.AddWithValue("@from",        fromDate);
+            cmd.Parameters.AddWithValue("@toExclusive", toExclusive);
+
+            using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                var bookingId     = reader.GetInt32(reader.GetOrdinal("BookingId"));
+                var bookingDate   = reader["BookingDate"]   as DateTime?;
+                var bookingTime   = reader["BookingTime"]   as DateTime?;
+                var cancelDate    = reader["CancelDate"]    as DateTime?;
+                var noShow        = reader["NoShow"]        as bool?;
+                var actualMins    = reader["ActualMins"]    as int?;
+                var durationValue = reader["DurationValue"] as string;
+                var statusLabel   = reader["StatusLabel"]   as string;
+                var companyName   = reader["CompanyName"]   as string;
+                var reqFirst      = reader["ReqFirst"]      as string;
+                var reqLast       = reader["ReqLast"]       as string;
+                var int1First     = reader["Int1First"]     as string;
+                var int1Last      = reader["Int1Last"]      as string;
+                var int2First     = reader["Int2First"]     as string;
+                var int2Last      = reader["Int2Last"]      as string;
+                var btLabel       = reader["BookingTypeLabel"] as string;
+                var dateAdded     = reader["DateAdded"]     as DateTime?;
+
+                int? bookedMins = int.TryParse(durationValue, out var bm) ? bm : (int?)null;
+                var isComplete  = statusLabel != null && statusLabel.IndexOf("Complete", StringComparison.OrdinalIgnoreCase) >= 0;
+                var isCancelled = statusLabel != null && statusLabel.IndexOf("Cancel",   StringComparison.OrdinalIgnoreCase) >= 0;
+
+                // Late-cancel filter: keep only rows cancelled <48h before scheduled start
+                // (cancellations made after start time are still billable).
+                if (isCancelled)
+                {
+                    if (!bookingDate.HasValue || !bookingTime.HasValue || !cancelDate.HasValue) continue;
+                    var scheduledStart = bookingDate.Value.Date + bookingTime.Value.TimeOfDay;
+                    var hoursBefore = (scheduledStart - cancelDate.Value).TotalHours;
+                    if (hoursBefore >= 48) continue;
+                }
+
+                string outcome;
+                if (isComplete && noShow == true) outcome = "No show";
+                else if (isComplete)              outcome = "Completed";
+                else if (isCancelled)             outcome = "Cancelled (late)";
+                else                              outcome = statusLabel ?? "Unknown";
+
+                int? chargedMins = null;
+                if (isComplete)
+                {
+                    if (noShow == true) chargedMins = bookedMins;
+                    else if (actualMins.HasValue)
+                        chargedMins = bookedMins.HasValue ? Math.Max(actualMins.Value, bookedMins.Value) : actualMins.Value;
+                }
+                else if (isCancelled)
+                {
+                    chargedMins = bookedMins;
+                }
+
+                string? Compose(string? f, string? l)
+                {
+                    var name = $"{f} {l}".Trim();
+                    return string.IsNullOrWhiteSpace(name) ? null : name;
+                }
+
+                results.Add(new
+                {
+                    bookingId,
+                    companyName,
+                    customerName  = Compose(reqFirst, reqLast),
+                    dateRequested = dateAdded,
+                    bookingDate,
+                    bookingTime,
+                    bookingType   = btLabel,
+                    outcome,
+                    interpreter1  = Compose(int1First,  int1Last),
+                    interpreter2  = Compose(int2First,  int2Last),
+                    bookedMins,
+                    actualMins,
+                    chargedMins,
+                });
+            }
+
+            return Ok(results);
+        }
+
         [HttpGet("admin-stats")]
         public async Task<IActionResult> AdminStats()
         {

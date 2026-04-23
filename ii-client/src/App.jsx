@@ -14,6 +14,7 @@ import ManageCustomers from "./pages/ManageCustomers";
 import AdminPendingBookings from "./pages/Admin/AdminPendingBookings";
 import AdminFutureBookings from "./pages/Admin/AdminFutureBookings";
 import AdminCancelledBookings from "./pages/Admin/AdminCancelledBookings";
+import BillableReport from "./pages/Admin/BillableReport";
 import AllBookings from "./pages/AllBookings";
 import MyBookings from "./pages/Customer/MyBookings";
 import PendingBookings from "./pages/Customer/PendingBookings";
@@ -95,6 +96,7 @@ function App() {
           <Route path="/admin/pending" element={<RequireRole roles={["Admin"]}><AdminPendingBookings /></RequireRole>} />
           <Route path="/admin/future" element={<RequireRole roles={["Admin"]}><AdminFutureBookings /></RequireRole>} />
           <Route path="/admin/cancelled" element={<RequireRole roles={["Admin"]}><AdminCancelledBookings /></RequireRole>} />
+          <Route path="/admin/reports/billable" element={<RequireRole roles={["Admin"]}><BillableReport /></RequireRole>} />
           <Route path="/allbookings" element={<RequireRole roles={["Admin"]}><AllBookings /></RequireRole>}></Route>
           <Route path="/admincalendar" element={<RequireRole roles={["Admin"]}>< AdminCalendar /></RequireRole>}></Route>
           <Route path="/interpreter/bookings" element={<RequireRole roles={["Interpreter"]}><MyAssignments /></RequireRole>} />
