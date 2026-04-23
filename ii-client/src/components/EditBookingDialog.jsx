@@ -65,9 +65,20 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
   const [saveError, setSaveError] = useState(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelOther, setCancelOther] = useState("");
+  const [cancelReasonError, setCancelReasonError] = useState(null);
   const [confirmDecline, setConfirmDecline] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [urlCopied, setUrlCopied] = useState(false);
+
+  const CANCEL_REASONS = [
+    "No longer required",
+    "Deaf attendee cancelled",
+    "Meeting rescheduled",
+    "Booked in error",
+    "Other",
+  ];
 
   const handleCopyUrl = () => {
     if (!form.videoUrl) return;
@@ -86,6 +97,9 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
     setSaveError(null);
     setConfirmCancel(false);
     setConfirmDecline(false);
+    setCancelReason("");
+    setCancelOther("");
+    setCancelReasonError(null);
     setLoading(true);
 
     Promise.all([
@@ -187,9 +201,15 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
   };
 
   const handleConfirmCancel = async () => {
+    const reason = cancelReason === "Other" ? cancelOther.trim() : cancelReason;
+    if (!reason) {
+      setCancelReasonError("Please select or enter a reason.");
+      return;
+    }
+    setCancelReasonError(null);
     setCancelling(true);
     try {
-      await api.patch(`/bookings/${bookingId}/cancel`);
+      await api.patch(`/bookings/${bookingId}/cancel`, { reason });
       onSaved("Booking cancelled successfully");
       onClose();
     } catch {
@@ -289,7 +309,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
               sx={{
                 display: "flex", gap: 2, alignItems: "flex-start",
                 bgcolor: "#fff7ed", border: "1px solid #fed7aa",
-                borderRadius: 2, p: 2.5,
+                borderRadius: 2, p: 2.5, mb: 2.5,
               }}
             >
               <WarningAmberIcon sx={{ color: "#f97316", flexShrink: 0, mt: 0.2 }} />
@@ -298,10 +318,35 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                   Are you sure you want to cancel this booking?
                 </Typography>
                 <Typography variant="body2" sx={{ color: "#9a3412", opacity: 0.85 }}>
-                  This action cannot be undone. The booking will be marked as cancelled.
+                  This action cannot be undone. Please select a reason below.
                 </Typography>
               </Box>
             </Box>
+
+            {cancelReasonError && (
+              <Alert severity="error" sx={{ borderRadius: 2, mb: 2 }}>{cancelReasonError}</Alert>
+            )}
+
+            <TextField
+              select fullWidth size="small" label="Reason"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              sx={fieldSx}
+            >
+              {CANCEL_REASONS.map((r) => (
+                <MenuItem key={r} value={r}>{r}</MenuItem>
+              ))}
+            </TextField>
+
+            {cancelReason === "Other" && (
+              <TextField
+                fullWidth size="small" multiline rows={2}
+                label="Please specify"
+                value={cancelOther}
+                onChange={(e) => setCancelOther(e.target.value)}
+                sx={{ ...fieldSx, mt: 2 }}
+              />
+            )}
           </DialogContent>
 
           <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
@@ -330,7 +375,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                 boxShadow: "none",
               }}
             >
-              {cancelling ? "Cancelling…" : "Yes, cancel booking"}
+              {cancelling ? "Cancelling…" : "Confirm cancellation"}
             </Button>
           </DialogActions>
         </>

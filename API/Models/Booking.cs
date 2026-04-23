@@ -50,6 +50,8 @@ namespace IIAPI.Models
         public string? CustomerRef { get; set; }
         public string? PrepContactName { get; set; }
         public string? PrepContactEmail { get; set; }
+        public string? InterpreterNotes { get; set; }
+        public bool? NoShow { get; set; }
 
         [Timestamp]
         public byte[] updatedAt { get; set; } = null!;

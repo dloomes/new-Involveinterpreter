@@ -158,6 +158,25 @@ namespace IIAPI.Controllers
 
             // Admins see everything
 
+            int? bookedMins = null;
+            if (booking.DurationId.HasValue)
+            {
+                var dur = await _context.Duration.FindAsync(booking.DurationId.Value);
+                if (dur != null && int.TryParse(dur.DurationValue, out var m)) bookedMins = m;
+            }
+
+            int? chargedMins = null;
+            if (booking.NoShow == true)
+            {
+                chargedMins = bookedMins;
+            }
+            else if (booking.ActualMins.HasValue)
+            {
+                chargedMins = bookedMins.HasValue
+                    ? Math.Max(booking.ActualMins.Value, bookedMins.Value)
+                    : booking.ActualMins.Value;
+            }
+
             var result = new
             {
                 booking.BookingId,
@@ -185,7 +204,18 @@ namespace IIAPI.Controllers
                 booking.Attendees,
                 booking.PrepContactName,
                 booking.PrepContactEmail,
-                booking.CustId
+                booking.CustId,
+                booking.CancelComments,
+                booking.CancelDate,
+                booking.CancelledBy,
+                booking.DeclineComments,
+                booking.DeclineDate,
+                booking.DeclinedBy,
+                booking.ActualMins,
+                booking.NoShow,
+                booking.InterpreterNotes,
+                BookedMins = bookedMins,
+                ChargedMins = chargedMins
             };
 
             Console.WriteLine("Booking returned successfully");
@@ -398,8 +428,13 @@ namespace IIAPI.Controllers
             return Ok(booking);
         }
 
+        public class CancelBookingDto
+        {
+            public string? Reason { get; set; }
+        }
+
         [HttpPatch("{id}/cancel")]
-        public async Task<IActionResult> CancelBooking(int id)
+        public async Task<IActionResult> CancelBooking(int id, [FromBody] CancelBookingDto? dto = null)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
@@ -427,6 +462,7 @@ namespace IIAPI.Controllers
             booking.BookingStatus = cancelStatusId;
             booking.CancelDate = DateTime.UtcNow;
             booking.CancelledBy = user.Id;
+            booking.CancelComments = dto?.Reason;
 
             await _context.SaveChangesAsync();
 
@@ -445,14 +481,17 @@ namespace IIAPI.Controllers
                 var cancelledBy = roles.Contains("Admin") ? "an administrator" : "you";
                 var (dur, bType) = await ResolveBookingLabelsAsync(booking);
                 var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                var reasonLine = !string.IsNullOrWhiteSpace(booking.CancelComments)
+                    ? $" Reason: <strong>{System.Net.WebUtility.HtmlEncode(booking.CancelComments)}</strong>."
+                    : string.Empty;
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
                     admins: admins,
                     customerSubject: $"Booking #{booking.BookingId} — Cancelled",
-                    customerIntro: $"Your booking has been cancelled by {cancelledBy}. If this was unexpected, please contact us.",
+                    customerIntro: $"Your booking has been cancelled by {cancelledBy}.{reasonLine} If this was unexpected, please contact us.",
                     adminSubject: $"Booking #{booking.BookingId} cancelled — {custName}",
-                    adminIntro: $"Booking #{booking.BookingId} for <strong>{customerUser.FirstName} {customerUser.LastName}</strong> has been cancelled.",
+                    adminIntro: $"Booking #{booking.BookingId} for <strong>{customerUser.FirstName} {customerUser.LastName}</strong> has been cancelled.{reasonLine}",
                     duration: dur, bookingType: bType,
                     companyName: company?.Name);
             }
@@ -759,6 +798,66 @@ namespace IIAPI.Controllers
             });
         }
 
+        public class LogTimeDto
+        {
+            public bool NoShow { get; set; }
+            public int? ActualMins { get; set; }
+            public string? Notes { get; set; }
+        }
+
+        [HttpPatch("{id}/log-time")]
+        [Authorize(Roles = "Interpreter")]
+        public async Task<IActionResult> LogTime(int id, [FromBody] LogTimeDto dto)
+        {
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null) return Unauthorized();
+
+            var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.BookingId == id);
+            if (booking == null) return NotFound();
+
+            if (booking.Interpreter1 != user.Id && booking.Interpreter2 != user.Id)
+                return Forbid();
+
+            if (dto.NoShow)
+            {
+                if (string.IsNullOrWhiteSpace(dto.Notes))
+                    return BadRequest(new { error = "Notes are required for a no-show." });
+                booking.NoShow = true;
+                booking.ActualMins = null;
+                booking.InterpreterNotes = dto.Notes.Trim();
+            }
+            else
+            {
+                if (!dto.ActualMins.HasValue || dto.ActualMins.Value <= 0)
+                    return BadRequest(new { error = "Actual minutes are required." });
+                booking.NoShow = false;
+                booking.ActualMins = dto.ActualMins.Value;
+                booking.InterpreterNotes = string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes.Trim();
+            }
+
+            // Resolve a "Complete" status if one exists in BookingStatus
+            var connectionString = _context.Database.GetConnectionString();
+            using (var conn = new Microsoft.Data.SqlClient.SqlConnection(connectionString))
+            {
+                await conn.OpenAsync();
+                using var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                    "SELECT TOP 1 Id FROM BookingStatus WHERE Status LIKE '%Complete%'", conn);
+                var result = await cmd.ExecuteScalarAsync();
+                if (result != null && result != DBNull.Value)
+                    booking.BookingStatus = Convert.ToInt32(result);
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new
+            {
+                booking.BookingId,
+                booking.NoShow,
+                booking.ActualMins,
+                booking.InterpreterNotes,
+            });
+        }
+
         // ── Email notifications ───────────────────────────────────────
 
         private string BuildBookingEmail(
@@ -950,9 +1049,15 @@ namespace IIAPI.Controllers
             });
         }
 
+        public class DeclineBookingDto
+        {
+            public string? Reason { get; set; }
+            public string? AlternativeTimes { get; set; }
+        }
+
         [HttpPatch("{id}/decline")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> DeclineBooking(int id)
+        public async Task<IActionResult> DeclineBooking(int id, [FromBody] DeclineBookingDto? dto = null)
         {
             var user = await _userManager.GetUserAsync(User);
             if (user == null) return Unauthorized();
@@ -977,6 +1082,12 @@ namespace IIAPI.Controllers
             booking.DeclineDate    = DateTime.UtcNow;
             booking.DeclinedBy     = user.Id;
 
+            var declineReason = dto?.Reason?.Trim();
+            var altTimes = dto?.AlternativeTimes?.Trim();
+            booking.DeclineComments = !string.IsNullOrWhiteSpace(altTimes)
+                ? $"{declineReason}: {altTimes}"
+                : declineReason;
+
             await _context.SaveChangesAsync();
 
             // Notify SQOD if this booking has an associated appointment
@@ -992,12 +1103,20 @@ namespace IIAPI.Controllers
                 var custName = customerUser.FirstName ?? customerUser.Email;
                 var (dur, bType) = await ResolveBookingLabelsAsync(booking);
                 var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+
+                var reasonLine = !string.IsNullOrWhiteSpace(declineReason)
+                    ? $" Reason: <strong>{System.Net.WebUtility.HtmlEncode(declineReason)}</strong>."
+                    : string.Empty;
+                var altLine = !string.IsNullOrWhiteSpace(altTimes)
+                    ? $"<br/><br/>We may be able to offer alternative times: <strong>{System.Net.WebUtility.HtmlEncode(altTimes)}</strong>. Please contact us to arrange."
+                    : string.Empty;
+
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
                     admins: new List<ApplicationUser>(),
                     customerSubject: $"Booking #{booking.BookingId} — Unable to fulfil",
-                    customerIntro: "Unfortunately, we were unable to fulfil your booking request. Please contact us if you have any questions or would like to make an alternative arrangement.",
+                    customerIntro: $"Unfortunately, we were unable to fulfil your booking request.{reasonLine} Please contact us if you have any questions or would like to make an alternative arrangement.{altLine}",
                     adminSubject: "",
                     adminIntro: "",
                     duration: dur, bookingType: bType,
