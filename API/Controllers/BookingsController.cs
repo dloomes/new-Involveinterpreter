@@ -36,18 +36,44 @@ namespace IIAPI.Controllers
         private readonly BookingService _bookingService;
         private readonly EmailService _emailService;
         private readonly SqodService _sqodService;
+        private readonly GraphCalendarService _graphCalendar;
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _env;
 
-        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, IConfiguration config, IWebHostEnvironment env)
+        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, GraphCalendarService graphCalendar, IConfiguration config, IWebHostEnvironment env)
         {
             _context = context;
             _userManager = userManager;
             _bookingService = bookingService;
             _emailService = emailService;
             _sqodService = sqodService;
+            _graphCalendar = graphCalendar;
             _config = config;
             _env = env;
+        }
+
+        private async Task<List<ApplicationUser>> GetInterpreterUsersAsync(Booking booking)
+        {
+            var list = new List<ApplicationUser>();
+            if (!string.IsNullOrWhiteSpace(booking.Interpreter1))
+            {
+                var i = await _userManager.FindByIdAsync(booking.Interpreter1);
+                if (i != null) list.Add(i);
+            }
+            if (!string.IsNullOrWhiteSpace(booking.Interpreter2))
+            {
+                var i = await _userManager.FindByIdAsync(booking.Interpreter2);
+                if (i != null) list.Add(i);
+            }
+            return list;
+        }
+
+        private async Task<int?> GetDurationMinutesAsync(Booking booking)
+        {
+            if (!booking.DurationId.HasValue) return null;
+            var dur = await _context.Duration.FindAsync(booking.DurationId.Value);
+            if (dur != null && int.TryParse(dur.DurationValue, out var mins)) return mins;
+            return null;
         }
 
         private string? GetLogoDataUri()
@@ -295,6 +321,21 @@ namespace IIAPI.Controllers
                     }
                 }
 
+                // Create shared-calendar event in Outlook/Exchange
+                {
+                    var (durLabel, bTypeLabel) = await ResolveBookingLabelsAsync(booking);
+                    var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                    var durMins = await GetDurationMinutesAsync(booking);
+                    var interpreters = await GetInterpreterUsersAsync(booking);
+                    var eventId = await _graphCalendar.CreateEventAsync(
+                        booking, customerUser, company?.Name, durLabel, bTypeLabel, durMins, interpreters);
+                    if (!string.IsNullOrWhiteSpace(eventId))
+                    {
+                        booking.OutlookID = eventId;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+
                 // Send booking-created notifications
                 var admins = (await _userManager.GetUsersInRoleAsync("Admin")).ToList();
                 if (customerUser?.Email != null)
@@ -404,6 +445,18 @@ namespace IIAPI.Controllers
                 }
             }
 
+            // Sync updated details to Outlook/Exchange calendar
+            if (!string.IsNullOrWhiteSpace(booking.OutlookID))
+            {
+                var customerUser3 = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
+                var (durLabel, bTypeLabel) = await ResolveBookingLabelsAsync(booking);
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                var durMins = await GetDurationMinutesAsync(booking);
+                var interpreters = await GetInterpreterUsersAsync(booking);
+                _ = _graphCalendar.UpdateEventAsync(
+                    booking.OutlookID, booking, customerUser3, company?.Name, durLabel, bTypeLabel, durMins, interpreters);
+            }
+
             // Send booking-updated notifications
             var customerUser = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
             var admins = (await _userManager.GetUsersInRoleAsync("Admin")).ToList();
@@ -470,6 +523,34 @@ namespace IIAPI.Controllers
             if (!string.IsNullOrWhiteSpace(booking.SqodAppointmentId))
             {
                 _ = _sqodService.CancelAppointmentAsync(booking.SqodAppointmentId, "Booking cancelled via BSL portal");
+            }
+
+            // Remove or rename the Outlook/Exchange calendar event
+            if (!string.IsNullOrWhiteSpace(booking.OutlookID))
+            {
+                var hadInterpreter = !string.IsNullOrWhiteSpace(booking.Interpreter1)
+                                  || !string.IsNullOrWhiteSpace(booking.Interpreter2);
+
+                if (!hadInterpreter)
+                {
+                    var deleted = await _graphCalendar.DeleteEventAsync(booking.OutlookID, booking.BookingId);
+                    if (deleted)
+                    {
+                        booking.OutlookID = null;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else
+                {
+                    var customerUserC = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
+                    var (durLabelC, bTypeLabelC) = await ResolveBookingLabelsAsync(booking);
+                    var companyC = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                    var durMinsC = await GetDurationMinutesAsync(booking);
+                    var interpretersC = await GetInterpreterUsersAsync(booking);
+                    _ = _graphCalendar.UpdateEventAsync(
+                        booking.OutlookID, booking, customerUserC, companyC?.Name, durLabelC, bTypeLabelC, durMinsC, interpretersC,
+                        cancelled: true);
+                }
             }
 
             // Send cancellation email notifications
@@ -620,6 +701,18 @@ namespace IIAPI.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // Sync interpreter assignment to the Outlook/Exchange event
+            if (!string.IsNullOrWhiteSpace(booking.OutlookID))
+            {
+                var customerUserA = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
+                var (durLabelA, bTypeLabelA) = await ResolveBookingLabelsAsync(booking);
+                var companyA = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                var durMinsA = await GetDurationMinutesAsync(booking);
+                var interpretersA = await GetInterpreterUsersAsync(booking);
+                _ = _graphCalendar.UpdateEventAsync(
+                    booking.OutlookID, booking, customerUserA, companyA?.Name, durLabelA, bTypeLabelA, durMinsA, interpretersA);
+            }
 
             // Send interpreter-assigned notifications (only when at least one is being set)
             if (!string.IsNullOrWhiteSpace(dto.Interpreter1) || !string.IsNullOrWhiteSpace(dto.Interpreter2))
@@ -1094,6 +1187,33 @@ namespace IIAPI.Controllers
             if (!string.IsNullOrWhiteSpace(booking.SqodAppointmentId))
             {
                 _ = _sqodService.CancelAppointmentAsync(booking.SqodAppointmentId, "Booking declined — unable to fulfil");
+            }
+
+            // Remove or rename the Outlook/Exchange calendar event
+            if (!string.IsNullOrWhiteSpace(booking.OutlookID))
+            {
+                var hadInterpreterD = !string.IsNullOrWhiteSpace(booking.Interpreter1)
+                                   || !string.IsNullOrWhiteSpace(booking.Interpreter2);
+                if (!hadInterpreterD)
+                {
+                    var deleted = await _graphCalendar.DeleteEventAsync(booking.OutlookID, booking.BookingId);
+                    if (deleted)
+                    {
+                        booking.OutlookID = null;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else
+                {
+                    var customerUserD = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
+                    var (durLabelD, bTypeLabelD) = await ResolveBookingLabelsAsync(booking);
+                    var companyD = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+                    var durMinsD = await GetDurationMinutesAsync(booking);
+                    var interpretersD = await GetInterpreterUsersAsync(booking);
+                    _ = _graphCalendar.UpdateEventAsync(
+                        booking.OutlookID, booking, customerUserD, companyD?.Name, durLabelD, bTypeLabelD, durMinsD, interpretersD,
+                        cancelled: true);
+                }
             }
 
             // Email the customer only — no admin notification for declines

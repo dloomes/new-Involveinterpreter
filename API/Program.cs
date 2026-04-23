@@ -22,6 +22,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<SqodService>();
+builder.Services.AddScoped<GraphCalendarService>();
 
 // Add JWT Authentication
 builder.Services.AddAuthentication(options =>
