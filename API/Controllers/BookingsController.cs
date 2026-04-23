@@ -610,6 +610,24 @@ namespace IIAPI.Controllers
             }
         }
 
+        [HttpGet("calendar-interpreter")]
+        [Authorize(Roles = "Interpreter")]
+        public async Task<IActionResult> CalendarInterpreter()
+        {
+            try
+            {
+                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+                var events = await _bookingService.GetInterpreterCalendarViewAsync(userId);
+                return Ok(events);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"CalendarInterpreter error: {ex.Message}\n{ex.StackTrace}");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
         [HttpGet("{id}/available-interpreters")]
         public async Task<IActionResult> GetAvailableInterpreters(int id)
         {

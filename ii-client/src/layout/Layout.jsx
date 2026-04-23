@@ -128,6 +128,12 @@ export default function Layout() {
     },
 
     {
+      text: "Calendar",
+      icon: <CalendarMonthIcon fontSize="small" />,
+      path: "/interpreter/calendar",
+      roles: ["Interpreter"],
+    },
+    {
       text: "My Assignments",
       icon: <BookmarkBorderIcon fontSize="small" />,
       path: "/interpreter/bookings",

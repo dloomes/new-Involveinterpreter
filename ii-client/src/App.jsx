@@ -27,6 +27,7 @@ import MyAssignments from "./pages/Interpreter/MyAssignments";
 import FutureAssignments from "./pages/Interpreter/FutureAssignments";
 import PendingAssignments from "./pages/Interpreter/PendingAssignments";
 import CancelledAssignments from "./pages/Interpreter/CancelledAssignments";
+import InterpreterCalendar from "./pages/Interpreter/InterpreterCalendar";
 import Activate from "./pages/Activate";
 
 function PrivateRoute({ children }) {
@@ -103,6 +104,7 @@ function App() {
           <Route path="/interpreter/future" element={<RequireRole roles={["Interpreter"]}><FutureAssignments /></RequireRole>} />
           <Route path="/interpreter/pending" element={<RequireRole roles={["Interpreter"]}><PendingAssignments /></RequireRole>} />
           <Route path="/interpreter/cancelled" element={<RequireRole roles={["Interpreter"]}><CancelledAssignments /></RequireRole>} />
+          <Route path="/interpreter/calendar" element={<RequireRole roles={["Interpreter"]}><InterpreterCalendar /></RequireRole>} />
           </Route>
           </Routes>
       </BrowserRouter>
