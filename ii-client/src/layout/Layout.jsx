@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AppBar,
   Toolbar,
@@ -16,6 +16,8 @@ import {
   Avatar,
   Tooltip,
   Divider,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 
 import MenuIcon from "@mui/icons-material/Menu";
@@ -41,8 +43,15 @@ const drawerWidth = 248;
 export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [open, setOpen] = useState(true);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const [open, setOpen] = useState(!isMobile);
   const { user, logout, hasRole } = useAuth();
+
+  // Close drawer automatically on mobile when the route changes
+  useEffect(() => {
+    if (isMobile) setOpen(false);
+  }, [location.pathname, isMobile]);
 
   const [anchorEl, setAnchorEl] = useState(null);
   const openMenu = Boolean(anchorEl);
@@ -274,8 +283,10 @@ export default function Layout() {
 
       {/* ── SIDEBAR ── */}
       <Drawer
-        variant="persistent"
+        variant={isMobile ? "temporary" : "persistent"}
         open={open}
+        onClose={() => setOpen(false)}
+        ModalProps={{ keepMounted: true }}
         sx={{
           width: drawerWidth,
           "& .MuiDrawer-paper": {
@@ -399,10 +410,12 @@ export default function Layout() {
         component="main"
         sx={{
           flexGrow: 1,
-          p: 3,
+          width: { xs: "100%", md: `calc(100% - ${drawerWidth}px)` },
+          p: { xs: 2, md: 3 },
           bgcolor: "#f8fafc",
           minHeight: "100vh",
           transition: "margin-left 0.2s ease",
+          overflowX: "hidden",
         }}
       >
         <Toolbar sx={{ minHeight: 64 }} />

@@ -16,6 +16,8 @@ import {
   CircularProgress,
   IconButton,
   Alert,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
@@ -48,6 +50,8 @@ const fmt = (dt, opts) => {
 };
 
 export default function CustCalendar() {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [events, setEvents] = useState([]);
   const [legendStatuses, setLegendStatuses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -196,19 +200,19 @@ export default function CustCalendar() {
           </Box>
         ) : (
           <FullCalendar
+            key={isMobile ? "m" : "d"}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="dayGridMonth"
-            headerToolbar={{
-              left: "prev,next today",
-              center: "title",
-              right: "dayGridMonth,timeGridWeek,timeGridDay",
-            }}
+            initialView={isMobile ? "timeGridDay" : "dayGridMonth"}
+            headerToolbar={isMobile
+              ? { left: "prev,next", center: "title", right: "today" }
+              : { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }}
+            footerToolbar={isMobile ? { center: "dayGridMonth,timeGridWeek,timeGridDay" } : false}
             buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day" }}
             events={events}
             eventClick={handleEventClick}
             height="auto"
-            contentHeight={600}
-            dayMaxEvents={3}
+            contentHeight={isMobile ? 500 : 600}
+            dayMaxEvents={isMobile ? 2 : 3}
             slotMinTime="07:00:00"
             slotMaxTime="22:00:00"
             allDaySlot={false}

@@ -148,7 +148,7 @@ export default function UpdateProfileForm({ open, onClose }) {
               }}
             >
               <SectionHeading>Personal details</SectionHeading>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                 <TextField
                   label="First name"
                   name="firstName"

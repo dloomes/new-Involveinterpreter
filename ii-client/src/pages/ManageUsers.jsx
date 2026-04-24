@@ -262,7 +262,7 @@ export default function ManageUsers() {
           <Divider sx={{ mb: 2.5 }} />
           {editingUser && (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                 <TextField label="First name" size="small" value={editForm.firstName}
                   onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })} sx={fieldSx} />
                 <TextField label="Last name" size="small" value={editForm.lastName}
@@ -309,7 +309,7 @@ export default function ManageUsers() {
         <DialogContent sx={{ pt: 0 }}>
           <Divider sx={{ mb: 2.5 }} />
           <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <TextField label="First name" size="small" value={createForm.firstName}
                 onChange={(e) => setCreateForm({ ...createForm, firstName: e.target.value })} sx={fieldSx} />
               <TextField label="Last name" size="small" value={createForm.lastName}

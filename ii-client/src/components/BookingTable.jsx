@@ -13,6 +13,8 @@ import {
   TextField,
   MenuItem,
   Alert,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
@@ -143,6 +145,8 @@ export default function BookingTable({
 }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isAdmin = user?.roles?.includes("Admin");
   const isInterpreter = user?.roles?.includes("Interpreter");
   const [rows, setRows] = useState([]);
@@ -422,6 +426,7 @@ export default function BookingTable({
           loading={loading}
           pageSizeOptions={[10, 25, 50]}
           initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
+          columnVisibilityModel={isMobile ? { customer: false, duration: false, __cancel: false } : {}}
           onRowClick={(p) => setSelected(p.row)}
           autoHeight
           disableRowSelectionOnClick
@@ -559,6 +564,25 @@ export default function BookingTable({
               }}
             >
               Log time
+            </Button>
+          )}
+          {!isInterpreter && !isCancelled && !isUnfulfilled && (
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<CancelOutlinedIcon fontSize="small" />}
+              onClick={() => {
+                const row = selected;
+                setSelected(null);
+                openCancelDialog(row);
+              }}
+              sx={{
+                borderRadius: 2, textTransform: "none", fontWeight: 600,
+                borderColor: "#fecaca", color: "#dc2626",
+                "&:hover": { bgcolor: "#fee2e2", borderColor: "#dc2626" },
+              }}
+            >
+              Cancel
             </Button>
           )}
           {!isCancelled && (

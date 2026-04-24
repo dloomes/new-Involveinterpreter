@@ -408,7 +408,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                 {/* Date & time */}
                 <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
                   <SectionHeading>Date & time</SectionHeading>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                     <TextField
                       required label="Date" type="date" name="date"
                       value={form.date} onChange={handleChange}
@@ -444,7 +444,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                 {isGroupOrEvent && (
                   <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
                     <SectionHeading>Event details</SectionHeading>
-                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                       <TextField
                         label="Number of attendees" name="attendees" type="number" size="small"
                         value={form.attendees} onChange={handleChange} sx={fieldSx}
@@ -460,7 +460,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                     >
                       Prep material / agenda / slides contact
                     </Typography>
-                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                       <TextField
                         label="Contact name" name="prepContactName" size="small"
                         value={form.prepContactName} onChange={handleChange} sx={fieldSx}
@@ -476,7 +476,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                 {/* Contact */}
                 <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
                   <SectionHeading>Contact details</SectionHeading>
-                  <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                  <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                     <TextField
                       label="Email" name="contactEmail" type="email" size="small"
                       value={form.contactEmail} onChange={handleChange} sx={fieldSx}
@@ -492,7 +492,7 @@ export default function EditBookingDialog({ bookingId, onClose, onSaved }) {
                 {!isAtw && (
                   <Box sx={{ bgcolor: "#fff", borderRadius: 3, border: "1px solid #e2e8f0", p: 2.5 }}>
                     <SectionHeading>Attendees</SectionHeading>
-                    <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                       <TextField
                         label="Professional name" name="professionalName" size="small"
                         value={form.professionalName} onChange={handleChange} sx={fieldSx}

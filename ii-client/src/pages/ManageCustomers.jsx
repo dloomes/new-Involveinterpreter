@@ -226,7 +226,7 @@ export default function ManageCustomers() {
               Organisation
             </Typography>
             <Field label="Company name" name="name" required />
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <TextField select fullWidth size="small" label="Sector" value={form.sectorId}
                 onChange={(e) => setForm({ ...form, sectorId: e.target.value })} sx={fieldSx}>
                 <MenuItem value=""><em>None</em></MenuItem>
@@ -246,7 +246,7 @@ export default function ManageCustomers() {
               Contact
             </Typography>
             <Field label="Contact name" name="contact" />
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <TextField fullWidth size="small" label="Email" name="contactEmail" value={form.contactEmail}
                 onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} sx={fieldSx}
                 InputProps={{ startAdornment: <InputAdornment position="start"><EmailOutlinedIcon sx={{ fontSize: 16, color: "#94a3b8" }} /></InputAdornment> }} />
@@ -261,7 +261,7 @@ export default function ManageCustomers() {
             <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Invoice
             </Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <Field label="Invoice name" name="invoiceName" />
               <TextField fullWidth size="small" label="Invoice email" value={form.invoiceEmail}
                 onChange={(e) => setForm({ ...form, invoiceEmail: e.target.value })} sx={fieldSx}
@@ -274,7 +274,7 @@ export default function ManageCustomers() {
             <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Rates
             </Typography>
-            <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <TextField select fullWidth size="small" label="BSL rate type" value={form.bSLRateType}
                 onChange={(e) => setForm({ ...form, bSLRateType: e.target.value })} sx={fieldSx}>
                 <MenuItem value=""><em>None</em></MenuItem>
@@ -294,7 +294,7 @@ export default function ManageCustomers() {
               label={<Typography variant="body2">VRI / ATW enabled</Typography>}
             />
             {form.vRIATW && (
-              <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 2 }}>
+              <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                 <Field label="Charge (£)" name="vRIATWCharge" type="number" />
                 <Field label="Minutes" name="vRIATWMins" />
                 <Field label="Link" name="vRIATWLink" sx={{ ...fieldSx, gridColumn: "span 2" }} />
