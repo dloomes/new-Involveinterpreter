@@ -21,6 +21,7 @@ import PendingBookings from "./pages/Customer/PendingBookings";
 import CancelledBookings from "./pages/Customer/CancelledBookings";
 import FutureBookings from "./pages/Customer/FutureBookings";
 import CustCalendar from "./pages/Customer/custcalendar";
+import Resources from "./pages/Customer/Resources";
 import AdminCalendar from "./pages/admincalendar";
 import ResetPassword from "./pages/ResetPassword";
 import MyAssignments from "./pages/Interpreter/MyAssignments";
@@ -90,6 +91,7 @@ function App() {
           <Route path="/cancelledbookings" element={<RequireRole roles={["Customer"]}><CancelledBookings /></RequireRole>} />
           <Route path="/futurebookings" element={<RequireRole roles={["Customer"]}><FutureBookings /></RequireRole>} />
           <Route path="/custcalendar" element={<RequireRole roles={["Customer"]}><CustCalendar /></RequireRole>} />
+          <Route path="/resources" element={<RequireRole roles={["Customer"]}><Resources /></RequireRole>} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
           <Route path="/bookings/new" element={<CreateBooking />} />
           <Route path="/admin/users" element={<RequireRole roles={["Admin"]}><ManageUsers /></RequireRole>}></Route>

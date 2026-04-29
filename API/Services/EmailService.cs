@@ -10,7 +10,7 @@ public class EmailService
         _config = config;
     }
 
-    public async Task SendAsync(string to, string subject, string htmlBody)
+    public async Task SendAsync(string to, string subject, string htmlBody, IEnumerable<string>? cc = null)
     {
         var apiKey    = _config["SendGrid:ApiKey"]!;
         var fromEmail = _config["SendGrid:FromEmail"]!;
@@ -20,6 +20,17 @@ public class EmailService
         var from   = new EmailAddress(fromEmail, fromName);
         var toAddr = new EmailAddress(to);
         var msg    = MailHelper.CreateSingleEmail(from, toAddr, subject, null, htmlBody);
+
+        if (cc != null)
+        {
+            var ccList = cc
+                .Where(e => !string.IsNullOrWhiteSpace(e)
+                            && !string.Equals(e, to, StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(e => new EmailAddress(e))
+                .ToList();
+            if (ccList.Count > 0) msg.AddCcs(ccList);
+        }
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var response = await client.SendEmailAsync(msg, cts.Token);

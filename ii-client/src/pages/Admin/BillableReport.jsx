@@ -83,6 +83,7 @@ const toCsv = (rows) => {
     "Booking ID",
     "Company Name",
     "Customer Name (Requestor)",
+    "Customer PO",
     "Date booking (requested)",
     "Date of booking",
     "Start time",
@@ -100,6 +101,7 @@ const toCsv = (rows) => {
       r.bookingId,
       r.companyName,
       r.customerName,
+      r.customerRef,
       fmtDateIso(r.dateRequested),
       fmtDateIso(r.bookingDate),
       fmtTime(r.bookingTime),
@@ -188,6 +190,7 @@ export default function BillableReport() {
     { field: "bookingId", headerName: "ID", width: 80 },
     { field: "companyName", headerName: "Company", flex: 1.2 },
     { field: "customerName", headerName: "Customer", flex: 1 },
+    { field: "customerRef", headerName: "PO", flex: 0.7 },
     {
       field: "bookingDate",
       headerName: "Date",

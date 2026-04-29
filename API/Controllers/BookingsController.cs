@@ -300,26 +300,7 @@ namespace IIAPI.Controllers
 
                 var customerUser = await _userManager.FindByIdAsync(targetUserId);
 
-                // If no video URL was provided, generate one via SQOD
-                if (string.IsNullOrWhiteSpace(booking.VideoUrl) && customerUser != null)
-                {
-                    int? durationMins = null;
-                    if (booking.DurationId.HasValue)
-                    {
-                        var dur = await _context.Duration.FindAsync(booking.DurationId.Value);
-                        if (dur != null && int.TryParse(dur.DurationValue, out var mins))
-                            durationMins = mins;
-                    }
-
-                    var sqodResult = await _sqodService.CreateAppointmentAsync(booking, customerUser, durationMins);
-                    if (sqodResult != null)
-                    {
-                        booking.VideoUrl          = sqodResult.CustomerUrl;   // customer pre-call link
-                        booking.customerURL        = sqodResult.RoomUrl;       // agent/interpreter room link
-                        booking.SqodAppointmentId  = sqodResult.AppointmentId; // UUID for future cancel
-                        await _context.SaveChangesAsync();
-                    }
-                }
+                // SQOD appointment is now created later, when an interpreter is assigned.
 
                 // Create shared-calendar event in Outlook/Exchange
                 {
@@ -719,6 +700,30 @@ namespace IIAPI.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            var hasInterpreterAssigned = !string.IsNullOrWhiteSpace(booking.Interpreter1)
+                                      || !string.IsNullOrWhiteSpace(booking.Interpreter2);
+
+            // Create the SQOD appointment now that an interpreter has been assigned (only on first assignment)
+            if (hasInterpreterAssigned
+                && string.IsNullOrWhiteSpace(booking.SqodAppointmentId)
+                && string.IsNullOrWhiteSpace(booking.VideoUrl)
+                && !string.IsNullOrWhiteSpace(booking.UserId))
+            {
+                var customerUserSqod = await _userManager.FindByIdAsync(booking.UserId);
+                if (customerUserSqod != null)
+                {
+                    var durationMinsSqod = await GetDurationMinutesAsync(booking);
+                    var sqodResult = await _sqodService.CreateAppointmentAsync(booking, customerUserSqod, durationMinsSqod);
+                    if (sqodResult != null)
+                    {
+                        booking.VideoUrl          = sqodResult.CustomerUrl;
+                        booking.customerURL       = sqodResult.RoomUrl;
+                        booking.SqodAppointmentId = sqodResult.AppointmentId;
+                        await _context.SaveChangesAsync();
+                    }
+                }
+            }
 
             // Sync interpreter assignment to the Outlook/Exchange event
             if (!string.IsNullOrWhiteSpace(booking.OutlookID))
@@ -1139,7 +1144,8 @@ namespace IIAPI.Controllers
                         duration, bookingType, videoUrl, contactEmail,
                         companyName, contactName, deafName, profName, profEmail,
                         custRef, addInfo, attendees, prepName, prepEmail);
-                    await _emailService.SendAsync(customerEmail, customerSubject, html);
+                    var ccList = !string.IsNullOrWhiteSpace(profEmail) ? new[] { profEmail } : null;
+                    await _emailService.SendAsync(customerEmail, customerSubject, html, ccList);
                 }
                 catch (Exception ex) { Console.WriteLine($"[Email] Booking customer notification failed: {ex.Message}"); }
 
@@ -1339,6 +1345,7 @@ namespace IIAPI.Controllers
                   b.BookingId, b.CustId, b.UserId, b.Interpreter1, b.Interpreter2,
                   b.BookingDate, b.BookingTime, b.DurationId, b.BookingType AS BookingTypeId,
                   b.BookingStatus, b.CancelDate, b.NoShow, b.ActualMins, b.DateAdded,
+                  b.CustomerRef,
                   c.Name AS CompanyName,
                   u.FirstName AS ReqFirst, u.LastName AS ReqLast,
                   i1.FirstName AS Int1First, i1.LastName AS Int1Last,
@@ -1390,6 +1397,7 @@ namespace IIAPI.Controllers
                 var int2Last      = reader["Int2Last"]      as string;
                 var btLabel       = reader["BookingTypeLabel"] as string;
                 var dateAdded     = reader["DateAdded"]     as DateTime?;
+                var customerRef   = reader["CustomerRef"]   as string;
 
                 int? bookedMins = int.TryParse(durationValue, out var bm) ? bm : (int?)null;
                 var isComplete  = statusLabel != null && statusLabel.IndexOf("Complete", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -1434,6 +1442,7 @@ namespace IIAPI.Controllers
                     bookingId,
                     companyName,
                     customerName  = Compose(reqFirst, reqLast),
+                    customerRef,
                     dateRequested = dateAdded,
                     bookingDate,
                     bookingTime,

@@ -34,6 +34,7 @@ import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LogoutIcon from "@mui/icons-material/Logout";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { useAuth } from "../AuthContext";
 import UpdateProfileForm from "../pages/UpdateProfile";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
@@ -114,6 +115,12 @@ export default function Layout() {
       text: "Cancelled Bookings",
       icon: <EventBusyIcon fontSize="small" />,
       path: "/cancelledbookings",
+      roles: ["Customer"],
+    },
+    {
+      text: "Resources",
+      icon: <HelpOutlineIcon fontSize="small" />,
+      path: "/resources",
       roles: ["Customer"],
     },
 
