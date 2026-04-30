@@ -78,44 +78,24 @@ export default function Login() {
           justifyContent: "center",
           alignItems: "center",
           width: "45%",
-          background: "linear-gradient(145deg, #061926 0%, #0c6ea6 60%, #2ea3f2 100%)",
+          backgroundColor: "#031930",
+          backgroundImage: "url('/Portal-background.jpg')",
+          backgroundSize: "contain",
+          backgroundPosition: "bottom center",
+          backgroundRepeat: "no-repeat",
           color: "#fff",
           p: 6,
           position: "relative",
           overflow: "hidden",
         }}
       >
-        {/* Decorative circles */}
-        <Box
-          sx={{
-            position: "absolute",
-            width: 400,
-            height: 400,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.04)",
-            top: -100,
-            right: -100,
-          }}
-        />
-        <Box
-          sx={{
-            position: "absolute",
-            width: 280,
-            borderRadius: "50%",
-            height: 280,
-            background: "rgba(255,255,255,0.04)",
-            bottom: -60,
-            left: -60,
-          }}
-        />
-
-        <Box sx={{ position: "relative", textAlign: "center" }}>
+<Box sx={{ position: "relative", textAlign: "center" }}>
           <Typography variant="h3" fontWeight={800} sx={{ mb: 1.5, letterSpacing: "-0.5px" }}>
             Involve Interpreter
           </Typography>
           <Typography
             variant="body1"
-            sx={{ opacity: 0.7, maxWidth: 300, lineHeight: 1.7 }}
+            sx={{ opacity: 0.7, lineHeight: 1.7, whiteSpace: "nowrap" }}
           >
             Manage your British Sign Language interpreter bookings in one place.
           </Typography>
