@@ -81,7 +81,7 @@ export default function Login() {
           backgroundColor: "#031930",
           backgroundImage: "url('/Portal-background.jpg')",
           backgroundSize: "contain",
-          backgroundPosition: "bottom center",
+          backgroundPosition: "bottom left",
           backgroundRepeat: "no-repeat",
           color: "#fff",
           p: 6,
