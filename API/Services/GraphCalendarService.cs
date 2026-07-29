@@ -121,6 +121,13 @@ public class GraphCalendarService
         return (start, end);
     }
 
+    /// <summary>
+    /// A booking with no interpreter assigned is only provisional, so it shows as
+    /// Tentative in the shared mailbox and flips to Busy once someone is assigned.
+    /// </summary>
+    private static FreeBusyStatus ResolveShowAs(List<ApplicationUser> interpreters) =>
+        interpreters.Count > 0 ? FreeBusyStatus.Busy : FreeBusyStatus.Tentative;
+
     private List<Attendee> BuildAttendees(List<ApplicationUser> interpreters)
     {
         return interpreters
@@ -176,6 +183,7 @@ public class GraphCalendarService
                     TimeZone = _timeZone,
                 },
                 Attendees = BuildAttendees(interpreters),
+                ShowAs = ResolveShowAs(interpreters),
                 Location = string.IsNullOrWhiteSpace(booking.VideoUrl) ? null : new Location { DisplayName = "Video call" },
                 IsOnlineMeeting = false,
             };
@@ -230,6 +238,7 @@ public class GraphCalendarService
                     TimeZone = _timeZone,
                 },
                 Attendees = BuildAttendees(interpreters),
+                ShowAs = ResolveShowAs(interpreters),
             };
 
             await _graph!.Users[_mailbox].Events[eventId].PatchAsync(patch);

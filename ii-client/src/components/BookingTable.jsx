@@ -133,7 +133,32 @@ const baseBookingColumns = [
   },
 ];
 
-const customerColumn = { field: "customer", headerName: "Customer", flex: 1 };
+// Customer is null in vw_AllBookings whenever Booking.CustId doesn't resolve to
+// a Customer row (e.g. CustId 0, from a user account with no company assigned).
+// Render a placeholder so the gap is visible rather than looking like a blank cell.
+const customerColumn = {
+  field: "customer",
+  headerName: "Customer",
+  flex: 1,
+  renderCell: (p) =>
+    p.value ? (
+      p.value
+    ) : (
+      <Typography variant="body2" sx={{ color: "#94a3b8", fontStyle: "italic", fontSize: "0.82rem" }}>
+        Not set
+      </Typography>
+    ),
+};
+
+// Shared by every button in the detail dialog's footer. nowrap is the important
+// bit — without it long labels like "Unable to allocate" break mid-word.
+const dialogBtnSx = {
+  borderRadius: 2,
+  textTransform: "none",
+  fontWeight: 600,
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+};
 
 export default function BookingTable({
   title,
@@ -381,8 +406,24 @@ export default function BookingTable({
     },
   };
 
+  // Booking reference, always the first column. The id lives under different
+  // field names per endpoint ("id" for customers, "bookingId" for admin and
+  // interpreter views), so key it off rowIdField rather than hard-coding.
+  const idColumn = {
+    field: rowIdField,
+    headerName: "Booking",
+    width: 100,
+    renderCell: (p) => (
+      <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+        #{p.value}
+      </Typography>
+    ),
+  };
+
   const columns = [
-    ...extraColumns,
+    idColumn,
+    // Guard against a caller also supplying an id column — DataGrid throws on duplicate fields.
+    ...extraColumns.filter((c) => c.field !== rowIdField),
     ...(showCustomer ? [customerColumn] : []),
     ...baseBookingColumns,
     ...(showCancelColumn ? [cancelColumn] : []),
@@ -438,14 +479,24 @@ export default function BookingTable({
       <Dialog
         open={Boolean(selected)}
         onClose={() => setSelected(null)}
-        maxWidth="xs"
+        maxWidth="sm"
         fullWidth
         PaperProps={{ sx: { borderRadius: 3, border: "1px solid #e2e8f0" } }}
       >
-        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", pb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#0f172a" }}>
-            Booking details
-          </Typography>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, pb: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+            <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#0f172a" }}>
+              Booking details
+            </Typography>
+            {selected && (
+              <Typography
+                variant="body2"
+                sx={{ color: "#64748b", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}
+              >
+                #{selected[rowIdField]}
+              </Typography>
+            )}
+          </Box>
           <IconButton size="small" onClick={() => setSelected(null)}>
             <CloseIcon fontSize="small" />
           </IconButton>
@@ -496,16 +547,18 @@ export default function BookingTable({
           )}
         </DialogContent>
 
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+        <DialogActions
+          sx={{
+            px: 3, pb: 2.5, pt: 2, gap: 1,
+            borderTop: "1px solid #f1f5f9",
+            display: "flex", flexWrap: "wrap", justifyContent: "flex-end",
+          }}
+        >
           <Button
             onClick={() => setSelected(null)}
-            variant="outlined"
+            variant="text"
             size="small"
-            sx={{
-              borderRadius: 2, textTransform: "none",
-              borderColor: "#e2e8f0", color: "#475569",
-              "&:hover": { borderColor: "#94a3b8" },
-            }}
+            sx={{ ...dialogBtnSx, mr: "auto", fontWeight: 500, color: "#64748b", "&:hover": { bgcolor: "#f1f5f9" } }}
           >
             Close
           </Button>
@@ -520,7 +573,7 @@ export default function BookingTable({
                 setAssigningId(id);
               }}
               sx={{
-                borderRadius: 2, textTransform: "none", fontWeight: 600,
+                ...dialogBtnSx,
                 borderColor: "#bfdbfe", color: "#1e40af",
                 "&:hover": { bgcolor: "#eff6ff", borderColor: "#93c5fd" },
               }}
@@ -539,7 +592,7 @@ export default function BookingTable({
                 openDeclineDialog(row);
               }}
               sx={{
-                borderRadius: 2, textTransform: "none", fontWeight: 600,
+                ...dialogBtnSx,
                 borderColor: "#fde68a", color: "#b45309",
                 "&:hover": { bgcolor: "#fffbeb", borderColor: "#fcd34d" },
               }}
@@ -558,7 +611,8 @@ export default function BookingTable({
                 openLogDialog(row);
               }}
               sx={{
-                borderRadius: 2, textTransform: "none", fontWeight: 600,
+                ...dialogBtnSx,
+                boxShadow: "none",
                 background: "linear-gradient(90deg, #0f766e 0%, #14b8a6 100%)",
                 "&:hover": { background: "linear-gradient(90deg, #115e59 0%, #0d9488 100%)" },
               }}
@@ -577,12 +631,12 @@ export default function BookingTable({
                 openCancelDialog(row);
               }}
               sx={{
-                borderRadius: 2, textTransform: "none", fontWeight: 600,
+                ...dialogBtnSx,
                 borderColor: "#fecaca", color: "#dc2626",
                 "&:hover": { bgcolor: "#fee2e2", borderColor: "#dc2626" },
               }}
             >
-              Cancel
+              Cancel booking
             </Button>
           )}
           {!isCancelled && (
@@ -596,7 +650,8 @@ export default function BookingTable({
                 setEditingId(id);
               }}
               sx={{
-                borderRadius: 2, textTransform: "none", fontWeight: 600,
+                ...dialogBtnSx,
+                boxShadow: "none",
                 background: "linear-gradient(90deg, #003366 0%, #0057b8 100%)",
                 "&:hover": { background: "linear-gradient(90deg, #002244 0%, #0046a0 100%)" },
               }}

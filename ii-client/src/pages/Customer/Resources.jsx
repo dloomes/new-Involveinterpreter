@@ -7,13 +7,19 @@ import {
   AccordionDetails,
   Button,
   Divider,
+  Dialog,
+  DialogContent,
+  IconButton,
 } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
+import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import { jsPDF } from "jspdf";
 
 // ─── Guide content (shared by screen + print) ─────────────────────────
@@ -24,6 +30,7 @@ const guides = [
     icon: <AddCircleOutlineIcon sx={{ color: "#0c6ea6" }} />,
     title: "How to make a booking",
     summary: "Request a BSL interpreter for a meeting or event.",
+    videoUrl: "https://youtu.be/DO4uXp_LBS8",
     steps: [
       {
         title: "Open the New Booking form",
@@ -65,6 +72,7 @@ const guides = [
     icon: <EditOutlinedIcon sx={{ color: "#0c6ea6" }} />,
     title: "How to edit a booking",
     summary: "Change the time, duration, or other details of an existing booking.",
+    videoUrl: "https://youtu.be/gAh86rIxczI",
     steps: [
       {
         title: "Find the booking",
@@ -94,6 +102,7 @@ const guides = [
     icon: <CancelOutlinedIcon sx={{ color: "#dc2626" }} />,
     title: "How to cancel a booking",
     summary: "Cancel a booking you no longer need.",
+    videoUrl: "https://youtu.be/eSc13zXOd94",
     steps: [
       {
         title: "Find the booking",
@@ -219,6 +228,14 @@ const downloadGuide = (guide) => {
   const summaryLines = doc.splitTextToSize(guide.summary, contentW);
   doc.text(summaryLines, marginX, y);
   y += summaryLines.length * 5 + 2;
+
+  // Clickable link to the video walkthrough
+  if (guide.videoUrl) {
+    doc.setFontSize(10);
+    doc.setTextColor(12, 110, 166);
+    doc.textWithLink(`Watch the video walkthrough: ${guide.videoUrl}`, marginX, y, { url: guide.videoUrl });
+    y += 6;
+  }
 
   // Divider
   doc.setDrawColor(0, 51, 102);
@@ -350,6 +367,119 @@ const Step = ({ n, title, body }) => (
   </Box>
 );
 
+// Thumbnail card that opens the walkthrough in a popup player on the page,
+// rather than navigating the user away to YouTube.
+const youTubeId = (url) => url.split("/").pop().split("?")[0];
+
+const VideoCard = ({ url, title, onPlay }) => (
+  <Box
+    component="button"
+    type="button"
+    onClick={onPlay}
+    aria-label={`Play video walkthrough: ${title}`}
+    sx={{
+      display: "flex",
+      alignItems: "center",
+      gap: 2,
+      p: 1.5,
+      mb: 3,
+      width: "100%",
+      textAlign: "left",
+      font: "inherit",
+      cursor: "pointer",
+      borderRadius: 2,
+      border: "1px solid #e2e8f0",
+      bgcolor: "#fff",
+      transition: "border-color 120ms, box-shadow 120ms",
+      "&:hover": { borderColor: "#0c6ea6", boxShadow: "0 1px 6px rgba(15,23,42,0.08)" },
+      "&:hover .videoPlay": { bgcolor: "#dc2626" },
+      "&:focus-visible": { outline: "2px solid #0c6ea6", outlineOffset: 2 },
+    }}
+  >
+    <Box sx={{ position: "relative", flexShrink: 0, width: 132, height: 74, borderRadius: 1.5, overflow: "hidden", bgcolor: "#0f172a" }}>
+      <Box
+        component="img"
+        src={`https://i.ytimg.com/vi/${youTubeId(url)}/hqdefault.jpg`}
+        alt=""
+        loading="lazy"
+        sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+      />
+      <Box
+        className="videoPlay"
+        sx={{
+          position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+          width: 34, height: 34, borderRadius: "50%", bgcolor: "rgba(15,23,42,0.75)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background-color 120ms",
+        }}
+      >
+        <PlayArrowRoundedIcon sx={{ color: "#fff", fontSize: 24 }} />
+      </Box>
+    </Box>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography variant="body2" fontWeight={600} sx={{ color: "#0f172a", mb: 0.25 }}>
+        Watch the video walkthrough
+      </Typography>
+      <Typography variant="body2" sx={{ color: "#64748b", fontSize: "0.8rem" }}>
+        Plays here without leaving the page
+      </Typography>
+    </Box>
+  </Box>
+);
+
+// Popup player. Uses youtube-nocookie so the embed doesn't set tracking cookies
+// until the viewer actually plays something.
+const VideoDialog = ({ video, onClose }) => (
+  <Dialog
+    open={Boolean(video)}
+    onClose={onClose}
+    maxWidth="md"
+    fullWidth
+    PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", bgcolor: "#0f172a" } }}
+  >
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, px: 2, py: 1.25 }}>
+      <Typography variant="body2" fontWeight={600} sx={{ color: "#fff", minWidth: 0 }}>
+        {video?.title}
+      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+        <Button
+          component="a"
+          href={video?.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          size="small"
+          endIcon={<OpenInNewIcon sx={{ fontSize: 14 }} />}
+          sx={{
+            textTransform: "none", fontWeight: 500, fontSize: "0.78rem",
+            color: "#94a3b8", whiteSpace: "nowrap",
+            "&:hover": { color: "#fff", bgcolor: "rgba(255,255,255,0.08)" },
+          }}
+        >
+          Open on YouTube
+        </Button>
+        <IconButton size="small" onClick={onClose} aria-label="Close video" sx={{ color: "#94a3b8", "&:hover": { color: "#fff" } }}>
+          <CloseIcon fontSize="small" />
+        </IconButton>
+      </Box>
+    </Box>
+    <DialogContent sx={{ p: 0 }}>
+      {/* 16:9 responsive frame */}
+      <Box sx={{ position: "relative", width: "100%", pt: "56.25%", bgcolor: "#000" }}>
+        {video && (
+          <Box
+            component="iframe"
+            src={`https://www.youtube-nocookie.com/embed/${youTubeId(video.url)}?autoplay=1&rel=0&modestbranding=1`}
+            title={video.title}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            sx={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%", border: 0 }}
+          />
+        )}
+      </Box>
+    </DialogContent>
+  </Dialog>
+);
+
 const Tip = ({ html }) => (
   <Box
     sx={{
@@ -371,6 +501,7 @@ const Tip = ({ html }) => (
 export default function Resources() {
   const [expanded, setExpanded] = useState("create");
   const handleChange = (id) => (_e, isExp) => setExpanded(isExp ? id : false);
+  const [video, setVideo] = useState(null);
 
   return (
     <Box sx={{ maxWidth: 900, mx: "auto" }}>
@@ -382,8 +513,9 @@ export default function Resources() {
           </Typography>
         </Box>
         <Typography variant="body2" sx={{ color: "#64748b" }}>
-          Quick guides for common tasks. Click a topic to expand it, or use the
-          download button to save a printable copy.
+          Quick guides for common tasks. Click a topic to expand it for a video
+          walkthrough and step-by-step instructions, or use the download button
+          to save a printable copy.
         </Typography>
       </Box>
 
@@ -462,6 +594,13 @@ export default function Resources() {
             </AccordionSummary>
             <Divider />
             <AccordionDetails sx={{ p: 3, bgcolor: "#f8fafc" }}>
+              {g.videoUrl && (
+                <VideoCard
+                  url={g.videoUrl}
+                  title={g.title}
+                  onPlay={() => setVideo({ url: g.videoUrl, title: g.title })}
+                />
+              )}
               {g.steps.map((s, i) => (
                 <Step key={i} n={i + 1} title={s.title} body={s.body} />
               ))}
@@ -511,6 +650,8 @@ export default function Resources() {
           and we'll be happy to help.
         </Typography>
       </Box>
+
+      <VideoDialog video={video} onClose={() => setVideo(null)} />
     </Box>
   );
 }

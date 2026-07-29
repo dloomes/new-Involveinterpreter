@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Button, Chip, Stack, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Select, MenuItem, Divider, IconButton,
+  TextField, Select, MenuItem, Divider, IconButton, InputAdornment,
 } from "@mui/material";
 import { DataGrid } from "@mui/x-data-grid";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -10,6 +10,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import SendIcon from "@mui/icons-material/Send";
+import SearchIcon from "@mui/icons-material/Search";
 import api from "../api";
 import { useAuth } from "../AuthContext";
 import { dataGridSx } from "../components/BookingTable";
@@ -51,6 +52,8 @@ export default function ManageUsers() {
 
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  const [search, setSearch] = useState("");
+
   const load = async () => {
     setLoading(true);
     try {
@@ -70,6 +73,23 @@ export default function ManageUsers() {
   useEffect(() => { load(); }, []);
 
   const customerName = (id) => customers.find((c) => c.id === id)?.name ?? (id ? `ID ${id}` : "—");
+
+  // ── Search ──
+  // Every whitespace-separated term must appear somewhere in the row, so
+  // "loomes admin" narrows to admins named Loomes rather than matching either.
+  const filteredUsers = useMemo(() => {
+    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return users;
+    return users.filter((u) => {
+      const haystack = [
+        u.firstName, u.lastName, u.email, u.phoneNumber,
+        customers.find((c) => c.id === u.companyId)?.name,
+        ...(u.roles ?? []),
+        u.emailConfirmed ? "active" : "pending",
+      ].filter(Boolean).join(" ").toLowerCase();
+      return terms.every((t) => haystack.includes(t));
+    });
+  }, [users, customers, search]);
 
   // ── Edit ──
   const openEdit = (row) => {
@@ -243,8 +263,38 @@ export default function ManageUsers() {
       </Box>
 
       <Box sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#fff", overflow: "hidden" }}>
+        <Box sx={{
+          p: 2, borderBottom: "1px solid #e2e8f0", display: "flex", gap: 2,
+          alignItems: "center", justifyContent: "space-between", flexWrap: "wrap",
+        }}>
+          <TextField
+            size="small" placeholder="Search name, email, customer or role…"
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            sx={{ ...fieldSx, width: { xs: "100%", sm: 340 } }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: "#94a3b8" }} />
+                </InputAdornment>
+              ),
+              endAdornment: search ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearch("")} title="Clear search"
+                    sx={{ color: "#94a3b8", "&:hover": { color: "#475569" } }}>
+                    <CloseIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          {search && (
+            <Typography variant="body2" sx={{ color: "#64748b", fontSize: "0.82rem" }}>
+              {filteredUsers.length} of {users.length} users
+            </Typography>
+          )}
+        </Box>
         <DataGrid
-          rows={users} columns={columns} getRowId={(r) => r.id}
+          rows={filteredUsers} columns={columns} getRowId={(r) => r.id}
           loading={loading} pageSizeOptions={[10, 25]}
           initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
           disableRowSelectionOnClick autoHeight sx={dataGridSx}
