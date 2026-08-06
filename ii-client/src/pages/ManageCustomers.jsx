@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box, Typography, Button, Chip, Snackbar, Alert,
   Dialog, DialogTitle, DialogContent, DialogActions,
@@ -12,6 +12,7 @@ import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
+import SearchIcon from "@mui/icons-material/Search";
 import api from "../api";
 import { dataGridSx } from "../components/BookingTable";
 
@@ -22,6 +23,17 @@ const empty = {
 };
 
 const fieldSx = { "& .MuiOutlinedInput-root": { borderRadius: 2 } };
+
+// Defined at module scope on purpose. Declaring this inside ManageCustomers gives
+// it a new function identity on every render, so React unmounts and remounts the
+// input each keystroke and the field loses focus.
+const Field = ({ label, name, form, setForm, type = "text", ...rest }) => (
+  <TextField
+    fullWidth size="small" label={label} type={type}
+    value={form[name]} onChange={(e) => setForm({ ...form, [name]: e.target.value })}
+    sx={fieldSx} {...rest}
+  />
+);
 
 export default function ManageCustomers() {
   const [customers, setCustomers] = useState([]);
@@ -34,6 +46,7 @@ export default function ManageCustomers() {
   const [form, setForm] = useState(empty);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+  const [search, setSearch] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -122,6 +135,23 @@ export default function ManageCustomers() {
   const sectorName = (id) => sectors.find((s) => s.id === id)?.sector ?? "—";
   const statusName = (id) => statuses.find((s) => s.id === id)?.status ?? "—";
 
+  // ── Search ──
+  // Every whitespace-separated term must appear somewhere in the row, so
+  // "council active" narrows rather than matching either on its own.
+  const filteredCustomers = useMemo(() => {
+    const terms = search.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return customers;
+    return customers.filter((c) => {
+      const haystack = [
+        c.name, c.contact, c.contactEmail, c.contactNumber,
+        c.invoiceName, c.invoiceEmail,
+        sectors.find((s) => s.id === c.sectorId)?.sector,
+        statuses.find((s) => s.id === c.statusId)?.status,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return terms.every((t) => haystack.includes(t));
+    });
+  }, [customers, sectors, statuses, search]);
+
   const columns = [
     { field: "name", headerName: "Name", flex: 2 },
     { field: "contactEmail", headerName: "Email", flex: 2 },
@@ -165,14 +195,6 @@ export default function ManageCustomers() {
     },
   ];
 
-  const Field = ({ label, name, type = "text", ...rest }) => (
-    <TextField
-      fullWidth size="small" label={label} type={type}
-      value={form[name]} onChange={(e) => setForm({ ...form, [name]: e.target.value })}
-      sx={fieldSx} {...rest}
-    />
-  );
-
   return (
     <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <Box sx={{ mb: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -197,8 +219,38 @@ export default function ManageCustomers() {
       </Box>
 
       <Box sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#fff", overflow: "hidden" }}>
+        <Box sx={{
+          p: 2, borderBottom: "1px solid #e2e8f0", display: "flex", gap: 2,
+          alignItems: "center", justifyContent: "space-between", flexWrap: "wrap",
+        }}>
+          <TextField
+            size="small" placeholder="Search name, contact, email, sector or status…"
+            value={search} onChange={(e) => setSearch(e.target.value)}
+            sx={{ ...fieldSx, width: { xs: "100%", sm: 360 } }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: "#94a3b8" }} />
+                </InputAdornment>
+              ),
+              endAdornment: search ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={() => setSearch("")} title="Clear search"
+                    sx={{ color: "#94a3b8", "&:hover": { color: "#475569" } }}>
+                    <CloseIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          {search && (
+            <Typography variant="body2" sx={{ color: "#64748b", fontSize: "0.82rem" }}>
+              {filteredCustomers.length} of {customers.length} customers
+            </Typography>
+          )}
+        </Box>
         <DataGrid
-          rows={customers} columns={columns} getRowId={(r) => r.id}
+          rows={filteredCustomers} columns={columns} getRowId={(r) => r.id}
           loading={loading} pageSizeOptions={[10, 25]}
           initialState={{ pagination: { paginationModel: { pageSize: 10 } } }}
           disableRowSelectionOnClick autoHeight sx={dataGridSx}
@@ -225,7 +277,7 @@ export default function ManageCustomers() {
             <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Organisation
             </Typography>
-            <Field label="Company name" name="name" required />
+            <Field label="Company name" name="name" form={form} setForm={setForm} required />
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <TextField select fullWidth size="small" label="Sector" value={form.sectorId}
                 onChange={(e) => setForm({ ...form, sectorId: e.target.value })} sx={fieldSx}>
@@ -245,7 +297,7 @@ export default function ManageCustomers() {
             <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
               Contact
             </Typography>
-            <Field label="Contact name" name="contact" />
+            <Field label="Contact name" name="contact" form={form} setForm={setForm} />
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
               <TextField fullWidth size="small" label="Email" name="contactEmail" value={form.contactEmail}
                 onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} sx={fieldSx}
@@ -262,7 +314,7 @@ export default function ManageCustomers() {
               Invoice
             </Typography>
             <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-              <Field label="Invoice name" name="invoiceName" />
+              <Field label="Invoice name" name="invoiceName" form={form} setForm={setForm} />
               <TextField fullWidth size="small" label="Invoice email" value={form.invoiceEmail}
                 onChange={(e) => setForm({ ...form, invoiceEmail: e.target.value })} sx={fieldSx}
                 InputProps={{ startAdornment: <InputAdornment position="start"><EmailOutlinedIcon sx={{ fontSize: 16, color: "#94a3b8" }} /></InputAdornment> }} />
@@ -280,7 +332,7 @@ export default function ManageCustomers() {
                 <MenuItem value=""><em>None</em></MenuItem>
                 {rateTypes.map((r) => <MenuItem key={r.id} value={r.id}>{r.rateType}</MenuItem>)}
               </TextField>
-              <Field label="Agreed rate (£)" name="agreedRate" type="number" />
+              <Field label="Agreed rate (£)" name="agreedRate" type="number" form={form} setForm={setForm} />
             </Box>
 
             <Divider />
@@ -295,9 +347,9 @@ export default function ManageCustomers() {
             />
             {form.vRIATW && (
               <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                <Field label="Charge (£)" name="vRIATWCharge" type="number" />
-                <Field label="Minutes" name="vRIATWMins" />
-                <Field label="Link" name="vRIATWLink" sx={{ ...fieldSx, gridColumn: "span 2" }} />
+                <Field label="Charge (£)" name="vRIATWCharge" type="number" form={form} setForm={setForm} />
+                <Field label="Minutes" name="vRIATWMins" form={form} setForm={setForm} />
+                <Field label="Link" name="vRIATWLink" form={form} setForm={setForm} sx={{ ...fieldSx, gridColumn: "span 2" }} />
               </Box>
             )}
           </Box>

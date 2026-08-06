@@ -34,6 +34,18 @@ const RoleChip = ({ role }) => {
 
 const fieldSx = { "& .MuiOutlinedInput-root": { borderRadius: 2 } };
 
+// Module scope, not inside ManageUsers — a component declared inside the render
+// body gets a fresh identity each render, which remounts the control (and loses
+// focus) on every keystroke.
+const CustomerSelect = ({ value, onChange, customers }) => (
+  <TextField select fullWidth size="small" label="Customer" value={value} onChange={onChange} sx={fieldSx}>
+    <MenuItem value=""><em>None</em></MenuItem>
+    {[...customers].sort((a, b) => a.name?.localeCompare(b.name)).map((c) => (
+      <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
+    ))}
+  </TextField>
+);
+
 const emptyCreate = { firstName: "", lastName: "", email: "", phone: "", companyId: "", roles: [] };
 const emptyEdit   = { firstName: "", lastName: "", email: "", phone: "", companyId: "", roles: [] };
 
@@ -236,15 +248,6 @@ export default function ManageUsers() {
     },
   ];
 
-  const CustomerSelect = ({ value, onChange }) => (
-    <TextField select fullWidth size="small" label="Customer" value={value} onChange={onChange} sx={fieldSx}>
-      <MenuItem value=""><em>None</em></MenuItem>
-      {[...customers].sort((a, b) => a.name?.localeCompare(b.name)).map((c) => (
-        <MenuItem key={c.id} value={c.id}>{c.name}</MenuItem>
-      ))}
-    </TextField>
-  );
-
   return (
     <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <Box sx={{ mb: 4, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -322,7 +325,7 @@ export default function ManageUsers() {
                 onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} sx={fieldSx} />
               <TextField label="Phone" size="small" value={editForm.phone}
                 onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} sx={fieldSx} />
-              <CustomerSelect value={editForm.companyId}
+              <CustomerSelect value={editForm.companyId} customers={customers}
                 onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })} />
               <Box>
                 <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", mb: 1, display: "block" }}>
@@ -369,7 +372,7 @@ export default function ManageUsers() {
               onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })} sx={fieldSx} />
             <TextField label="Phone" size="small" value={createForm.phone}
               onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })} sx={fieldSx} />
-            <CustomerSelect value={createForm.companyId}
+            <CustomerSelect value={createForm.companyId} customers={customers}
               onChange={(e) => setCreateForm({ ...createForm, companyId: e.target.value })} />
             <Box>
               <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", mb: 1, display: "block" }}>
