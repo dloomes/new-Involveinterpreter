@@ -16,6 +16,7 @@ import {
   Avatar,
   Tooltip,
   Divider,
+  Link,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -423,10 +424,45 @@ export default function Layout() {
           minHeight: "100vh",
           transition: "margin-left 0.2s ease",
           overflowX: "hidden",
+          // Column layout so the footer sits at the bottom of the viewport on
+          // short pages rather than floating directly under the content.
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <Toolbar sx={{ minHeight: 64 }} />
-        <Outlet />
+
+        <Box sx={{ flexGrow: 1 }}>
+          <Outlet />
+        </Box>
+
+        {/* ── FOOTER ── */}
+        <Box
+          component="footer"
+          sx={{
+            mt: 4,
+            pt: 2,
+            borderTop: "1px solid #e2e8f0",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 1,
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Typography variant="body2" sx={{ color: "#94a3b8", fontSize: "0.8rem" }}>
+            © {new Date().getFullYear()} Involve Interpreter
+          </Typography>
+          <Link
+            href="https://involveinterpreter.co.uk/privacy-notice/"
+            target="_blank"
+            rel="noopener noreferrer"
+            underline="hover"
+            sx={{ color: "#64748b", fontSize: "0.8rem", fontWeight: 500, "&:hover": { color: "#0057b8" } }}
+          >
+            Privacy notice
+          </Link>
+        </Box>
       </Box>
     </Box>
   );

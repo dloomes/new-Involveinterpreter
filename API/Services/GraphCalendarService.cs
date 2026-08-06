@@ -53,6 +53,9 @@ public class GraphCalendarService
     {
         var lines = new List<string>
         {
+            // Marker so events raised by this portal are distinguishable at a glance
+            // from ones carried over from the previous booking platform.
+            "<p style=\"margin:0 0 10px 0;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;letter-spacing:0.05em;text-transform:uppercase;color:#0057b8;\">New Portal</p>",
             $"<p><strong>Booking #{booking.BookingId}</strong></p>",
             "<ul>"
         };
