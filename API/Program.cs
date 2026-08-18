@@ -76,6 +76,24 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Legacy host redirect. The previous portal lived on bslportal and links to it are
+// still in circulation (bookmarks, older emails), so anything arriving on that
+// hostname is sent to the current one with path and query preserved. Registered
+// first so it short-circuits before static files or HTTPS redirection.
+const string legacyHost  = "bslportal.involveinterpreter.co.uk";
+const string currentHost = "bslbooking.involveinterpreter.co.uk";
+
+app.Use(async (ctx, next) =>
+{
+    if (ctx.Request.Host.Host.Equals(legacyHost, StringComparison.OrdinalIgnoreCase))
+    {
+        ctx.Response.Redirect(
+            $"https://{currentHost}{ctx.Request.Path}{ctx.Request.QueryString}", permanent: true);
+        return;
+    }
+    await next();
+});
+
 // Swagger — available in Development and Staging, not Production
 if (!app.Environment.IsProduction())
 {
