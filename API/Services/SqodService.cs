@@ -7,6 +7,7 @@ using IIAPI.Models;
 public class SqodService
 {
     private readonly IConfiguration _config;
+    private readonly TimeZoneInfo _ukZone;
     private static readonly HttpClient _http = new();
 
     // Cached token — shared across all scoped instances (static fields on the class)
@@ -17,6 +18,50 @@ public class SqodService
     public SqodService(IConfiguration config)
     {
         _config = config;
+
+        // Same config key GraphCalendarService already uses for Outlook events —
+        // reusing it means this fix needs no new Azure app setting.
+        var zoneId = _config["Graph:EventTimeZone"] ?? "GMT Standard Time";
+        try
+        {
+            _ukZone = TimeZoneInfo.FindSystemTimeZoneById(zoneId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[Sqod] Could not resolve time zone '{zoneId}' ({ex.Message}) — falling back to UTC.");
+            _ukZone = TimeZoneInfo.Utc;
+        }
+    }
+
+    /// <summary>
+    /// Converts a booking's UK wall-clock date/time to UTC for the SQOD API.
+    /// BookingTime/BookingDate come back from SQL Server (and from JSON-bound
+    /// request DTOs with no offset) as DateTimeKind.Unspecified holding the UK
+    /// wall-clock value the customer actually entered — never UTC. Calling
+    /// .ToUniversalTime() on that is wrong: it silently converts using
+    /// TimeZoneInfo.Local (the server's own zone, e.g. UTC on Azure App Service)
+    /// rather than the UK's, which only happens to give the right answer when
+    /// the UK is on GMT and is off by exactly the DST offset (1 hour) whenever
+    /// the UK is on BST. Converting via the named "GMT Standard Time" zone
+    /// (the same one already used for Outlook events) applies the correct
+    /// BST/GMT rule for the specific date, not whatever zone the server is in.
+    /// </summary>
+    private DateTime ToUtc(DateTime wallClockUk)
+    {
+        var unspecified = DateTime.SpecifyKind(wallClockUk, DateTimeKind.Unspecified);
+        try
+        {
+            return TimeZoneInfo.ConvertTimeToUtc(unspecified, _ukZone);
+        }
+        catch (Exception ex)
+        {
+            // Only realistically reachable for a time inside the one-hour
+            // "spring forward" gap that doesn't exist. Never let a timezone
+            // edge case take down appointment creation — fall back to the
+            // previous (naive) behaviour rather than throwing.
+            Console.WriteLine($"[Sqod] Time zone conversion failed for {wallClockUk:O} ({ex.Message}) — falling back to naive UTC conversion.");
+            return unspecified.ToUniversalTime();
+        }
     }
 
     private async Task<string?> GetTokenAsync()
@@ -149,7 +194,7 @@ public class SqodService
         var custName  = $"{customer.FirstName} {customer.LastName}".Trim();
         var custEmail = booking.ContactEmail ?? customer.Email ?? "";
         var custPhone = NormalizePhone(booking.ContactNumber ?? customer.PhoneNumber);
-        var aptAt     = appointmentAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.ffffff");
+        var aptAt     = ToUtc(appointmentAt).ToString("yyyy-MM-ddTHH:mm:ss.ffffff");
         var duration  = (durationMinutes ?? 60).ToString();
 
         Console.WriteLine($"[Sqod] Payload: appointment_at={aptAt}, duration={duration}m, claimant={custName} <{custEmail}>, phone={custPhone ?? "omitted"}");
@@ -248,7 +293,7 @@ public class SqodService
 
         var payload = new Dictionary<string, object?>
         {
-            ["appointment_at"]      = appointmentAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ss.ffffff"),
+            ["appointment_at"]      = ToUtc(appointmentAt).ToString("yyyy-MM-ddTHH:mm:ss.ffffff"),
             ["duration_in_minutes"] = durationMinutes ?? 60,
             ["claimant"] = new Dictionary<string, string?> {
                 ["name"]         = custName,
