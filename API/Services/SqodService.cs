@@ -87,7 +87,11 @@ public class SqodService
             }
 
             var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{clientId}:{clientSecret}"));
-            var url = $"https://auth.app.sqod.co.uk/oauth2/token?clientid={Uri.EscapeDataString(clientId)}";
+            // SQOD migrated their token issuer to AWS Cognito; configurable so a future
+            // change is an appsettings edit rather than a redeploy.
+            var tokenUrl = _config["Sqod:TokenUrl"]
+                ?? "https://eu-west-2wxqkfz8qj.auth.eu-west-2.amazoncognito.com/oauth2/token";
+            var url = $"{tokenUrl}?clientid={Uri.EscapeDataString(clientId)}";
 
             var request = new HttpRequestMessage(HttpMethod.Post, url);
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", credentials);
