@@ -17,6 +17,14 @@ import {
   Tooltip,
   Divider,
   Link,
+  Switch,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Snackbar,
+  Alert,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -36,8 +44,10 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useAuth } from "../AuthContext";
 import UpdateProfileForm from "../pages/UpdateProfile";
+import api from "../api";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 
 const drawerWidth = 248;
@@ -70,6 +80,56 @@ export default function Layout() {
   const handleProfileOpen = () => {
     handleMenuClose();
     setProfileOpen(true);
+  };
+
+  // Email notifications toggle — visible to Admin/Super Admin only. Controls
+  // whether booking notification emails (created/updated/cancelled/assigned/
+  // declined) go out; password reset and account activation emails always
+  // send regardless of this setting.
+  const canManageNotifications = Boolean(
+    user?.roles?.some((r) => ["admin", "super admin"].includes(r.toLowerCase()))
+  );
+  const [notificationsEnabled, setNotificationsEnabled] = useState(null); // null = not loaded yet
+  const [notifBusy, setNotifBusy] = useState(false);
+  const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
+  const [notifSnackbar, setNotifSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  useEffect(() => {
+    if (!canManageNotifications) return;
+    api
+      .get("/settings/notifications")
+      .then((res) => setNotificationsEnabled(res.data.enabled))
+      .catch(() => setNotificationsEnabled(null));
+  }, [canManageNotifications]);
+
+  const updateNotifications = async (enabled) => {
+    setNotifBusy(true);
+    try {
+      await api.put("/settings/notifications", { enabled });
+      setNotificationsEnabled(enabled);
+      setNotifSnackbar({
+        open: true,
+        message: enabled ? "Email notifications turned on" : "Email notifications turned off",
+        severity: enabled ? "success" : "warning",
+      });
+    } catch {
+      setNotifSnackbar({ open: true, message: "Failed to update notification settings", severity: "error" });
+    } finally {
+      setNotifBusy(false);
+    }
+  };
+
+  const handleNotificationsSwitch = (e) => {
+    if (e.target.checked) {
+      updateNotifications(true);
+    } else {
+      setConfirmDisableOpen(true);
+    }
+  };
+
+  const confirmDisableNotifications = () => {
+    setConfirmDisableOpen(false);
+    updateNotifications(false);
   };
 
   if (!user) return null;
@@ -235,6 +295,31 @@ export default function Layout() {
               style={{ height: 32, objectFit: "contain" }}
             />
           </Box>
+
+          {canManageNotifications && notificationsEnabled !== null && (
+            <Tooltip title={notificationsEnabled ? "Booking emails are being sent" : "Booking emails are paused"}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mr: 2 }}>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    display: { xs: "none", sm: "block" },
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    color: notificationsEnabled ? "#64748b" : "#b45309",
+                  }}
+                >
+                  Email notifications
+                </Typography>
+                <Switch
+                  size="small"
+                  checked={notificationsEnabled}
+                  disabled={notifBusy}
+                  onChange={handleNotificationsSwitch}
+                  color={notificationsEnabled ? "primary" : "warning"}
+                />
+              </Box>
+            </Tooltip>
+          )}
 
           <Tooltip title="Account settings">
             <IconButton onClick={handleMenuOpen} sx={{ p: 0.5 }}>
@@ -412,6 +497,72 @@ export default function Layout() {
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
       />
+
+      {/* ── Disable notifications confirmation ── */}
+      <Dialog
+        open={confirmDisableOpen}
+        onClose={() => setConfirmDisableOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #e2e8f0" } }}
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#0f172a" }}>
+            Turn off email notifications?
+          </Typography>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 0 }}>
+          <Divider sx={{ mb: 2.5 }} />
+          <Box
+            sx={{
+              display: "flex", gap: 2, alignItems: "flex-start",
+              bgcolor: "#fff7ed", border: "1px solid #fed7aa",
+              borderRadius: 2, p: 2,
+            }}
+          >
+            <WarningAmberIcon sx={{ color: "#f97316", flexShrink: 0, mt: 0.2 }} />
+            <Typography variant="body2" sx={{ color: "#9a3412" }}>
+              Customers, interpreters and admins will stop receiving booking
+              created, updated, cancelled, assigned and declined emails until
+              this is turned back on. Password reset and account activation
+              emails are not affected.
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+          <Button
+            onClick={() => setConfirmDisableOpen(false)}
+            variant="outlined"
+            size="small"
+            sx={{ borderRadius: 2, textTransform: "none", borderColor: "#e2e8f0", color: "#475569" }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={confirmDisableNotifications}
+            variant="contained"
+            size="small"
+            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, bgcolor: "#dc2626", "&:hover": { bgcolor: "#b91c1c" } }}
+          >
+            Turn off
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={notifSnackbar.open}
+        autoHideDuration={4000}
+        onClose={() => setNotifSnackbar((s) => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+      >
+        <Alert
+          severity={notifSnackbar.severity}
+          sx={{ borderRadius: 2 }}
+          onClose={() => setNotifSnackbar((s) => ({ ...s, open: false }))}
+        >
+          {notifSnackbar.message}
+        </Alert>
+      </Snackbar>
 
       {/* ── PAGE CONTENT ── */}
       <Box

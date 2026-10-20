@@ -23,6 +23,7 @@ builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<SqodService>();
 builder.Services.AddScoped<GraphCalendarService>();
+builder.Services.AddScoped<SystemSettingsService>();
 
 // Add JWT Authentication
 builder.Services.AddAuthentication(options =>

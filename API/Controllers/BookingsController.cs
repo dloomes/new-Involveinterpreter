@@ -37,10 +37,11 @@ namespace IIAPI.Controllers
         private readonly EmailService _emailService;
         private readonly SqodService _sqodService;
         private readonly GraphCalendarService _graphCalendar;
+        private readonly SystemSettingsService _systemSettings;
         private readonly IConfiguration _config;
         private readonly IWebHostEnvironment _env;
 
-        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, GraphCalendarService graphCalendar, IConfiguration config, IWebHostEnvironment env)
+        public BookingsController(ApplicationDbContext context, UserManager<ApplicationUser> userManager, BookingService bookingService, EmailService emailService, SqodService sqodService, GraphCalendarService graphCalendar, SystemSettingsService systemSettings, IConfiguration config, IWebHostEnvironment env)
         {
             _context = context;
             _userManager = userManager;
@@ -48,6 +49,7 @@ namespace IIAPI.Controllers
             _emailService = emailService;
             _sqodService = sqodService;
             _graphCalendar = graphCalendar;
+            _systemSettings = systemSettings;
             _config = config;
             _env = env;
         }
@@ -794,25 +796,32 @@ namespace IIAPI.Controllers
                 var date = booking.BookingDate.HasValue ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy") : "—";
                 var time = booking.BookingTime.HasValue ? booking.BookingTime.Value.ToString("HH:mm") : "—";
 
-                foreach (var interpreter in interpreterUsers)
+                if (await _systemSettings.AreEmailNotificationsEnabledAsync())
                 {
-                    if (string.IsNullOrWhiteSpace(interpreter.Email)) continue;
-                    var interpName = $"{interpreter.FirstName} {interpreter.LastName}".Trim();
-                    var subject = $"Booking #{booking.BookingId} — You have been assigned";
-                    var intro = $"You have been assigned as an interpreter for a booking on behalf of <strong>{customerName}</strong>.";
-                    var html = BuildBookingEmail(interpName, subject, intro, booking.BookingId, date, time,
-                        duration: dur, bookingType: bType,
-                        videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail,
-                        companyName: compName, contactName: booking.ContactName,
-                        deafName: booking.DeafName, professionalName: booking.ProfessionalName,
-                        professionalEmail: booking.ProfessionalEmail, customerRef: booking.CustomerRef,
-                        addInfo: booking.AddInfo, attendees: booking.Attendees,
-                        prepContactName: booking.PrepContactName, prepContactEmail: booking.PrepContactEmail);
-                    _ = Task.Run(async () =>
+                    foreach (var interpreter in interpreterUsers)
                     {
-                        try { await _emailService.SendAsync(interpreter.Email, subject, html); }
-                        catch (Exception ex) { Console.WriteLine($"[Email] Interpreter notification failed: {ex.Message}"); }
-                    });
+                        if (string.IsNullOrWhiteSpace(interpreter.Email)) continue;
+                        var interpName = $"{interpreter.FirstName} {interpreter.LastName}".Trim();
+                        var subject = $"Booking #{booking.BookingId} — You have been assigned";
+                        var intro = $"You have been assigned as an interpreter for a booking on behalf of <strong>{customerName}</strong>.";
+                        var html = BuildBookingEmail(interpName, subject, intro, booking.BookingId, date, time,
+                            duration: dur, bookingType: bType,
+                            videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail,
+                            companyName: compName, contactName: booking.ContactName,
+                            deafName: booking.DeafName, professionalName: booking.ProfessionalName,
+                            professionalEmail: booking.ProfessionalEmail, customerRef: booking.CustomerRef,
+                            addInfo: booking.AddInfo, attendees: booking.Attendees,
+                            prepContactName: booking.PrepContactName, prepContactEmail: booking.PrepContactEmail);
+                        _ = Task.Run(async () =>
+                        {
+                            try { await _emailService.SendAsync(interpreter.Email, subject, html); }
+                            catch (Exception ex) { Console.WriteLine($"[Email] Interpreter notification failed: {ex.Message}"); }
+                        });
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[Email] Notifications disabled — skipping interpreter assignment email(s) for booking #{booking.BookingId}.");
                 }
             }
 
@@ -1138,6 +1147,12 @@ namespace IIAPI.Controllers
 
             _ = Task.Run(async () =>
             {
+                if (!await _systemSettings.AreEmailNotificationsEnabledAsync())
+                {
+                    Console.WriteLine($"[Email] Notifications disabled — skipping booking email(s) for booking #{id}.");
+                    return;
+                }
+
                 try
                 {
                     var html = BuildBookingEmail(customerName, customerSubject, customerIntro, id, date, time,
