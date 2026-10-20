@@ -317,9 +317,38 @@ public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordModel m
         LastName = user.LastName,
         CompanyId = user.CompanyId,
         Roles = roles.ToList(),
-        IsAtw = isAtw
+        IsAtw = isAtw,
+        ReceiveBookingNotifications = user.ReceiveBookingNotifications
     });
 }
+
+public class SetNotificationPreferenceDto
+{
+    public bool Enabled { get; set; }
+}
+
+// Always acts on the calling user's own account — there is no userId
+// parameter, so there is no way to toggle anyone else's preference through
+// this endpoint. Roles string has no space after the comma on purpose:
+// ASP.NET Core splits on ',' without trimming, so "Admin, Super Admin"
+// would silently fail to match a user whose only role is "Super Admin".
+[Authorize(Roles = "Admin,Super Admin")]
+[HttpPut("notification-preference")]
+public async Task<IActionResult> SetNotificationPreference([FromBody] SetNotificationPreferenceDto dto)
+{
+    var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (userId == null) return Unauthorized();
+
+    var user = await _userManager.FindByIdAsync(userId);
+    if (user == null) return Unauthorized();
+
+    user.ReceiveBookingNotifications = dto.Enabled;
+    var result = await _userManager.UpdateAsync(user);
+    if (!result.Succeeded) return BadRequest(result.Errors);
+
+    return Ok(new { receiveBookingNotifications = user.ReceiveBookingNotifications });
+}
+
 [Authorize]
 [HttpPut("me")]
 public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileModel model)

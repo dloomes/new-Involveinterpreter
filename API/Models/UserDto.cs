@@ -11,5 +11,6 @@ namespace IIAPI.Models
         public List<string> Roles { get; set; }
         public bool EmailConfirmed { get; set; }
         public bool IsAtw { get; set; }
+        public bool ReceiveBookingNotifications { get; set; }
     }
 }

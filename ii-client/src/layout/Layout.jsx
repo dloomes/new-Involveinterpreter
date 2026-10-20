@@ -18,11 +18,6 @@ import {
   Divider,
   Link,
   Switch,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
   Snackbar,
   Alert,
   useMediaQuery,
@@ -44,7 +39,6 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useAuth } from "../AuthContext";
 import UpdateProfileForm from "../pages/UpdateProfile";
 import api from "../api";
@@ -58,7 +52,7 @@ export default function Layout() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [open, setOpen] = useState(!isMobile);
-  const { user, logout, hasRole } = useAuth();
+  const { user, logout, hasRole, refreshUser } = useAuth();
 
   // Close drawer automatically on mobile when the route changes
   useEffect(() => {
@@ -82,54 +76,35 @@ export default function Layout() {
     setProfileOpen(true);
   };
 
-  // Email notifications toggle — visible to Admin/Super Admin only. Controls
-  // whether booking notification emails (created/updated/cancelled/assigned/
-  // declined) go out; password reset and account activation emails always
-  // send regardless of this setting.
+  // Email notifications toggle — a personal preference, visible to Admin/Super
+  // Admin only, for whether THIS account receives the admin-copy booking
+  // notification emails (created/updated/cancelled/assigned/declined). Other
+  // admins' preferences, customer emails and interpreter emails are all
+  // unaffected — see GetNotifiableAdminsAsync/FireBookingNotification in
+  // BookingsController. Password reset and account activation always send
+  // regardless of this setting.
   const canManageNotifications = Boolean(
     user?.roles?.some((r) => ["admin", "super admin"].includes(r.toLowerCase()))
   );
-  const [notificationsEnabled, setNotificationsEnabled] = useState(null); // null = not loaded yet
   const [notifBusy, setNotifBusy] = useState(false);
-  const [confirmDisableOpen, setConfirmDisableOpen] = useState(false);
   const [notifSnackbar, setNotifSnackbar] = useState({ open: false, message: "", severity: "success" });
 
-  useEffect(() => {
-    if (!canManageNotifications) return;
-    api
-      .get("/settings/notifications")
-      .then((res) => setNotificationsEnabled(res.data.enabled))
-      .catch(() => setNotificationsEnabled(null));
-  }, [canManageNotifications]);
-
-  const updateNotifications = async (enabled) => {
+  const handleNotificationsSwitch = async (e) => {
+    const enabled = e.target.checked;
     setNotifBusy(true);
     try {
-      await api.put("/settings/notifications", { enabled });
-      setNotificationsEnabled(enabled);
+      await api.put("/auth/notification-preference", { enabled });
+      await refreshUser();
       setNotifSnackbar({
         open: true,
-        message: enabled ? "Email notifications turned on" : "Email notifications turned off",
-        severity: enabled ? "success" : "warning",
+        message: enabled ? "You'll receive booking notification emails" : "You won't receive booking notification emails",
+        severity: "success",
       });
     } catch {
-      setNotifSnackbar({ open: true, message: "Failed to update notification settings", severity: "error" });
+      setNotifSnackbar({ open: true, message: "Failed to update notification preference", severity: "error" });
     } finally {
       setNotifBusy(false);
     }
-  };
-
-  const handleNotificationsSwitch = (e) => {
-    if (e.target.checked) {
-      updateNotifications(true);
-    } else {
-      setConfirmDisableOpen(true);
-    }
-  };
-
-  const confirmDisableNotifications = () => {
-    setConfirmDisableOpen(false);
-    updateNotifications(false);
   };
 
   if (!user) return null;
@@ -296,8 +271,8 @@ export default function Layout() {
             />
           </Box>
 
-          {canManageNotifications && notificationsEnabled !== null && (
-            <Tooltip title={notificationsEnabled ? "Booking emails are being sent" : "Booking emails are paused"}>
+          {canManageNotifications && (
+            <Tooltip title={user.receiveBookingNotifications ? "You receive booking notification emails" : "You won't receive booking notification emails"}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mr: 2 }}>
                 <Typography
                   variant="body2"
@@ -305,17 +280,17 @@ export default function Layout() {
                     display: { xs: "none", sm: "block" },
                     fontSize: "0.8rem",
                     fontWeight: 600,
-                    color: notificationsEnabled ? "#64748b" : "#b45309",
+                    color: user.receiveBookingNotifications ? "#64748b" : "#b45309",
                   }}
                 >
                   Email notifications
                 </Typography>
                 <Switch
                   size="small"
-                  checked={notificationsEnabled}
+                  checked={Boolean(user.receiveBookingNotifications)}
                   disabled={notifBusy}
                   onChange={handleNotificationsSwitch}
-                  color={notificationsEnabled ? "primary" : "warning"}
+                  color={user.receiveBookingNotifications ? "primary" : "warning"}
                 />
               </Box>
             </Tooltip>
@@ -497,57 +472,6 @@ export default function Layout() {
         open={profileOpen}
         onClose={() => setProfileOpen(false)}
       />
-
-      {/* ── Disable notifications confirmation ── */}
-      <Dialog
-        open={confirmDisableOpen}
-        onClose={() => setConfirmDisableOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #e2e8f0" } }}
-      >
-        <DialogTitle sx={{ pb: 1 }}>
-          <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#0f172a" }}>
-            Turn off email notifications?
-          </Typography>
-        </DialogTitle>
-        <DialogContent sx={{ pt: 0 }}>
-          <Divider sx={{ mb: 2.5 }} />
-          <Box
-            sx={{
-              display: "flex", gap: 2, alignItems: "flex-start",
-              bgcolor: "#fff7ed", border: "1px solid #fed7aa",
-              borderRadius: 2, p: 2,
-            }}
-          >
-            <WarningAmberIcon sx={{ color: "#f97316", flexShrink: 0, mt: 0.2 }} />
-            <Typography variant="body2" sx={{ color: "#9a3412" }}>
-              Customers, interpreters and admins will stop receiving booking
-              created, updated, cancelled, assigned and declined emails until
-              this is turned back on. Password reset and account activation
-              emails are not affected.
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-          <Button
-            onClick={() => setConfirmDisableOpen(false)}
-            variant="outlined"
-            size="small"
-            sx={{ borderRadius: 2, textTransform: "none", borderColor: "#e2e8f0", color: "#475569" }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={confirmDisableNotifications}
-            variant="contained"
-            size="small"
-            sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600, bgcolor: "#dc2626", "&:hover": { bgcolor: "#b91c1c" } }}
-          >
-            Turn off
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       <Snackbar
         open={notifSnackbar.open}
