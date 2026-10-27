@@ -763,13 +763,20 @@ namespace IIAPI.Controllers
                 _ = _sqodService.CancelAppointmentAsync(booking.SqodAppointmentId, "Booking cancelled via BSL portal");
             }
 
-            // Remove or rename the Outlook/Exchange calendar event
+            // Remove or rename the Outlook/Exchange calendar event. Removed
+            // whenever there's nothing billable to keep a record of — either no
+            // interpreter was ever assigned, or there was 48+ hours' notice.
+            // Only a late cancellation with an interpreter assigned (the one case
+            // that's actually billable — see IsLateCancellation) keeps the event,
+            // renamed, as a record.
             if (!string.IsNullOrWhiteSpace(booking.OutlookID))
             {
                 var hadInterpreter = !string.IsNullOrWhiteSpace(booking.Interpreter1)
                                   || !string.IsNullOrWhiteSpace(booking.Interpreter2);
+                var isBillableCancellation = hadInterpreter
+                    && IsLateCancellation(booking.BookingDate, booking.BookingTime, booking.CancelDate!.Value);
 
-                if (!hadInterpreter)
+                if (!isBillableCancellation)
                 {
                     var deleted = await _graphCalendar.DeleteEventAsync(booking.OutlookID, booking.BookingId);
                     if (deleted)
@@ -1437,6 +1444,23 @@ namespace IIAPI.Controllers
         // check that decides whether to clear an assigned interpreter — both
         // need the identical definition of "changed", not two comparisons that
         // could quietly drift apart.
+        /// <summary>
+        /// A cancellation counts as "late" with less than 48 hours' notice before
+        /// the booking's scheduled start. Shared by the billable report (a late
+        /// cancellation with an interpreter assigned is billable) and the Outlook
+        /// sync on cancel (a late, billable cancellation keeps its calendar event
+        /// as a record; anything else is removed) — both need the identical
+        /// definition, not two thresholds that could quietly drift apart. Missing
+        /// date/time data is treated as not late, matching the billable report's
+        /// existing behaviour of excluding such rows rather than guessing.
+        /// </summary>
+        private static bool IsLateCancellation(DateTime? bookingDate, DateTime? bookingTime, DateTime cancelDate)
+        {
+            if (!bookingDate.HasValue || !bookingTime.HasValue) return false;
+            var scheduledStart = bookingDate.Value.Date + bookingTime.Value.TimeOfDay;
+            return (scheduledStart - cancelDate).TotalHours < 48;
+        }
+
         private static string? FormatBookingDate(DateTime? d) => d.HasValue ? d.Value.ToString("dddd, d MMMM yyyy") : null;
         private static string? FormatBookingTime(DateTime? t) => t.HasValue ? t.Value.ToString("HH:mm") : null;
 
@@ -1780,10 +1804,7 @@ namespace IIAPI.Controllers
                 // (cancellations made after start time are still billable).
                 if (isCancelled)
                 {
-                    if (!bookingDate.HasValue || !bookingTime.HasValue || !cancelDate.HasValue) continue;
-                    var scheduledStart = bookingDate.Value.Date + bookingTime.Value.TimeOfDay;
-                    var hoursBefore = (scheduledStart - cancelDate.Value).TotalHours;
-                    if (hoursBefore >= 48) continue;
+                    if (!cancelDate.HasValue || !IsLateCancellation(bookingDate, bookingTime, cancelDate.Value)) continue;
                 }
 
                 string outcome;
