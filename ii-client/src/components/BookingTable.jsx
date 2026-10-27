@@ -77,6 +77,27 @@ const fmtTime = (raw) => {
   return d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 };
 
+// CreatedAt from the API has no trailing "Z", but it's always UTC (DateTime.UtcNow
+// server-side) — append it so the browser converts to local time instead of
+// silently treating it as already-local and showing the wrong time.
+const fmtAuditTimestamp = (raw) => {
+  if (!raw) return "—";
+  const iso = raw.endsWith("Z") ? raw : `${raw}Z`;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+};
+
+const AUDIT_EVENT_STYLE = {
+  Created:    { icon: AddCircleOutlineIcon, color: "#0c6ea6" },
+  Updated:    { icon: EditOutlinedIcon,     color: "#0c6ea6" },
+  Assigned:   { icon: PersonOutlineIcon,    color: "#1e40af" },
+  Cancelled:  { icon: CancelOutlinedIcon,   color: "#dc2626" },
+  Declined:   { icon: WarningAmberIcon,     color: "#b45309" },
+  TimeLogged: { icon: TimerOutlinedIcon,    color: "#0f766e" },
+  NoShow:     { icon: WarningAmberIcon,     color: "#b45309" },
+};
+
 export const dataGridSx = {
   border: "none",
   borderRadius: 0,
@@ -174,6 +195,7 @@ export default function BookingTable({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isAdmin = user?.roles?.includes("Admin");
   const isInterpreter = user?.roles?.includes("Interpreter");
+  const canViewAuditLog = isAdmin || user?.roles?.includes("Super Admin");
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -199,6 +221,7 @@ export default function BookingTable({
   const [logging, setLogging] = useState(false);
   const [logError, setLogError] = useState(null);
   const [selectedLog, setSelectedLog] = useState(null);
+  const [auditLog, setAuditLog] = useState([]);
 
   const openCancelDialog = (row) => {
     setCancellingRow(row);
@@ -359,6 +382,22 @@ export default function BookingTable({
       .catch(() => {});
     return () => { cancelled = true; };
   }, [selected, rowIdField]);
+
+  // Admin/Super Admin only — the audit trail of everything that's happened to
+  // this booking. Separate from the effect above since it's a distinct concern
+  // with its own loading state, and most viewers of this dialog never trigger it.
+  useEffect(() => {
+    setAuditLog([]);
+    if (!selected || !canViewAuditLog) return;
+    const id = selected[rowIdField];
+    if (!id) return;
+    let cancelled = false;
+    api
+      .get(`/bookings/${id}/audit-log`)
+      .then((r) => { if (!cancelled) setAuditLog(r.data || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selected, rowIdField, canViewAuditLog]);
 
   const handleSaved = (message = "Changes saved") => {
     navigate("/", { state: { snack: message } });
@@ -542,6 +581,43 @@ export default function BookingTable({
               )}
               {selectedLog?.notes && (
                 <DetailRow label="Interpreter notes" value={selectedLog.notes} />
+              )}
+
+              {canViewAuditLog && auditLog.length > 0 && (
+                <>
+                  <Divider sx={{ mt: 1 }} />
+                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    Activity
+                  </Typography>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, maxHeight: 260, overflowY: "auto", pr: 0.5 }}>
+                    {auditLog.map((entry, i) => {
+                      const style = AUDIT_EVENT_STYLE[entry.eventType] || { icon: EditOutlinedIcon, color: "#64748b" };
+                      const Icon = style.icon;
+                      return (
+                        <Box key={i} sx={{ display: "flex", gap: 1.25 }}>
+                          <Icon sx={{ fontSize: 18, color: style.color, flexShrink: 0, mt: 0.2 }} />
+                          <Box sx={{ minWidth: 0, flex: 1 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600, color: "#0f172a" }}>
+                              {entry.summary}
+                            </Typography>
+                            <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                              {fmtAuditTimestamp(entry.createdAt)}
+                              {entry.actorName ? ` · ${entry.actorName}` : ""}
+                            </Typography>
+                            {entry.details && (
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "#475569", fontSize: "0.78rem", whiteSpace: "pre-line", mt: 0.25 }}
+                              >
+                                {entry.details}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                </>
               )}
             </Box>
           )}

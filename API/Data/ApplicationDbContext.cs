@@ -23,5 +23,6 @@ namespace IIAPI.Data
         public DbSet<CustSector> CustSectors { get; set; }
         public DbSet<CustomerStatus> CustomerStatuses { get; set; }
         public DbSet<BSLRateTypeModel> BSLRateTypes { get; set; }
+        public DbSet<BookingAuditLogEntry> BookingAuditLogs { get; set; }
     }
 }

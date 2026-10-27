@@ -53,6 +53,29 @@ namespace IIAPI.Controllers
         }
 
         /// <summary>
+        /// Records one row in the booking's activity history. Called directly
+        /// after whatever mutation it describes, so it only ever logs something
+        /// that genuinely happened — never speculative/pending state.
+        /// </summary>
+        private async Task LogAuditAsync(int bookingId, string eventType, string summary, string? details, ApplicationUser? actor)
+        {
+            _context.BookingAuditLogs.Add(new BookingAuditLogEntry
+            {
+                BookingId = bookingId,
+                EventType = eventType,
+                Summary = summary,
+                Details = details,
+                ActorUserId = actor?.Id,
+                ActorName = actor != null ? $"{actor.FirstName} {actor.LastName}".Trim() : null,
+                CreatedAt = DateTime.UtcNow,
+            });
+            await _context.SaveChangesAsync();
+        }
+
+        private static string? RenderChanges(List<(string Field, string? OldValue, string? NewValue)> changes) =>
+            changes.Count == 0 ? null : string.Join(Environment.NewLine, changes.Select(c => $"{c.Field}: {c.OldValue ?? "—"} → {c.NewValue ?? "—"}"));
+
+        /// <summary>
         /// Admin + Super Admin accounts, deduplicated (one account can hold both
         /// roles), minus anyone who has personally opted out of booking
         /// notification emails via their own account preference.
@@ -263,6 +286,32 @@ namespace IIAPI.Controllers
             return Ok(result);
         }
 
+        // GET: api/bookings/{id}/audit-log — admin only. Newest first, so the
+        // most recent thing that happened is the first thing an admin reads.
+        [HttpGet("{id}/audit-log")]
+        [Authorize(Roles = "Admin,Super Admin")]
+        public async Task<IActionResult> GetBookingAuditLog(int id)
+        {
+            var exists = await _context.Bookings.AnyAsync(b => b.BookingId == id);
+            if (!exists) return NotFound();
+
+            var entries = await _context.BookingAuditLogs
+                .Where(a => a.BookingId == id)
+                .OrderByDescending(a => a.CreatedAt)
+                .ThenByDescending(a => a.Id)
+                .Select(a => new
+                {
+                    a.EventType,
+                    a.Summary,
+                    a.Details,
+                    a.ActorName,
+                    a.CreatedAt,
+                })
+                .ToListAsync();
+
+            return Ok(entries);
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreateBooking([FromBody] CreateBookingDto dto)
         {
@@ -312,6 +361,8 @@ namespace IIAPI.Controllers
                 _context.Bookings.Add(booking);
                 await _context.SaveChangesAsync();
                 Console.WriteLine(booking);
+
+                await LogAuditAsync(booking.BookingId, "Created", "Booking created", null, user);
 
                 var customerUser = await _userManager.FindByIdAsync(targetUserId);
 
@@ -406,6 +457,26 @@ namespace IIAPI.Controllers
             if (!roles.Contains("Admin") && booking.UserId != user.Id)
                 return Forbid();
 
+            // Snapshotted before mutation so the admin/interpreter notification
+            // emails and the audit log can show what actually changed, not just
+            // the new values. The email diff only needs the first five (the ones
+            // that affect attending); the audit log covers every editable field.
+            var oldBookingDate = booking.BookingDate;
+            var oldBookingTime = booking.BookingTime;
+            var oldDurationId = booking.DurationId;
+            var oldBookingTypeId = booking.BookingType;
+            var oldVideoUrl = booking.VideoUrl;
+            var oldContactEmail = booking.ContactEmail;
+            var oldContactNumber = booking.ContactNumber;
+            var oldAddInfo = booking.AddInfo;
+            var oldDeafName = booking.DeafName;
+            var oldProfessionalName = booking.ProfessionalName;
+            var oldProfessionalEmail = booking.ProfessionalEmail;
+            var oldCustomerRef = booking.CustomerRef;
+            var oldAttendees = booking.Attendees;
+            var oldPrepContactName = booking.PrepContactName;
+            var oldPrepContactEmail = booking.PrepContactEmail;
+
             booking.BookingDate = dto.BookingDate;
             booking.BookingTime = dto.BookingTime;
             booking.DurationId = dto.DurationId;
@@ -453,6 +524,39 @@ namespace IIAPI.Controllers
                     booking.OutlookID, booking, customerUser3, company?.Name, durLabel, bTypeLabel, durMins, interpreters);
             }
 
+            // Field-level diff for the admin and interpreter copies — never shown
+            // to the customer, who just sees the current details as before. Scoped
+            // to the fields that affect attending; see BuildChangeSummaryAsync.
+            var changes = await BuildChangeSummaryAsync(
+                oldBookingDate, booking.BookingDate,
+                oldBookingTime, booking.BookingTime,
+                oldDurationId, booking.DurationId,
+                oldBookingTypeId, booking.BookingType,
+                oldVideoUrl, booking.VideoUrl);
+
+            // Audit log covers every editable field, not just the attendance-
+            // relevant subset used for the email — "what happened" should be the
+            // complete picture, even for a contact-detail-only edit nobody is
+            // emailed about.
+            var auditChanges = new List<(string Field, string? OldValue, string? NewValue)>(changes);
+            void AddPlainChange(string field, string? oldValue, string? newValue)
+            {
+                if (!string.Equals(oldValue, newValue, StringComparison.Ordinal))
+                    auditChanges.Add((field, oldValue, newValue));
+            }
+            AddPlainChange("Contact email", oldContactEmail, booking.ContactEmail);
+            AddPlainChange("Contact number", oldContactNumber, booking.ContactNumber);
+            AddPlainChange("Additional info", oldAddInfo, booking.AddInfo);
+            AddPlainChange("Deaf attendee", oldDeafName, booking.DeafName);
+            AddPlainChange("Professional name", oldProfessionalName, booking.ProfessionalName);
+            AddPlainChange("Professional email", oldProfessionalEmail, booking.ProfessionalEmail);
+            AddPlainChange("Customer ref", oldCustomerRef, booking.CustomerRef);
+            AddPlainChange("Attendees", oldAttendees?.ToString(), booking.Attendees?.ToString());
+            AddPlainChange("Prep contact name", oldPrepContactName, booking.PrepContactName);
+            AddPlainChange("Prep contact email", oldPrepContactEmail, booking.PrepContactEmail);
+            if (auditChanges.Count > 0)
+                await LogAuditAsync(booking.BookingId, "Updated", "Details updated", RenderChanges(auditChanges), user);
+
             // Send booking-updated notifications
             var customerUser = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
             var admins = await GetNotifiableAdminsAsync();
@@ -470,8 +574,44 @@ namespace IIAPI.Controllers
                     adminSubject: $"Booking #{booking.BookingId} updated — {custName}",
                     adminIntro: $"Booking #{booking.BookingId} has been updated for <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.",
                     duration: dur, bookingType: bType,
-                    companyName: company?.Name
+                    companyName: company?.Name,
+                    changes: changes
                 );
+            }
+
+            // Tell any already-assigned interpreter when something they'd need to
+            // know about has changed. There was previously no notification at all
+            // for this — only the initial assignment email — so an interpreter's
+            // date/time could change with no notice to them.
+            if (changes.Count > 0)
+            {
+                var interpreterUsers = await GetInterpreterUsersAsync(booking);
+                var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                var date = booking.BookingDate.HasValue ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy") : "—";
+                var time = booking.BookingTime.HasValue ? booking.BookingTime.Value.ToString("HH:mm") : "—";
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+
+                foreach (var interpreter in interpreterUsers)
+                {
+                    if (string.IsNullOrWhiteSpace(interpreter.Email)) continue;
+                    var interpName = $"{interpreter.FirstName} {interpreter.LastName}".Trim();
+                    var subject = $"Booking #{booking.BookingId} — Details updated";
+                    var intro = "The details for a booking you're assigned to have changed. Please see what's updated below.";
+                    var html = BuildBookingEmail(interpName, subject, intro, booking.BookingId, date, time,
+                        duration: dur, bookingType: bType,
+                        videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail,
+                        companyName: company?.Name, contactName: booking.ContactName,
+                        deafName: booking.DeafName, professionalName: booking.ProfessionalName,
+                        professionalEmail: booking.ProfessionalEmail, customerRef: booking.CustomerRef,
+                        addInfo: booking.AddInfo, attendees: booking.Attendees,
+                        prepContactName: booking.PrepContactName, prepContactEmail: booking.PrepContactEmail,
+                        changes: changes);
+                    _ = Task.Run(async () =>
+                    {
+                        try { await _emailService.SendAsync(interpreter.Email, subject, html); }
+                        catch (Exception ex) { Console.WriteLine($"[Email] Interpreter update notification failed: {ex.Message}"); }
+                    });
+                }
             }
 
             return Ok(booking);
@@ -514,6 +654,7 @@ namespace IIAPI.Controllers
             booking.CancelComments = dto?.Reason;
 
             await _context.SaveChangesAsync();
+            await LogAuditAsync(booking.BookingId, "Cancelled", "Booking cancelled", dto?.Reason, user);
 
             // Notify SQOD if this booking has an associated appointment
             if (!string.IsNullOrWhiteSpace(booking.SqodAppointmentId))
@@ -698,6 +839,9 @@ namespace IIAPI.Controllers
             var booking = await _context.Bookings.FirstOrDefaultAsync(b => b.BookingId == id);
             if (booking == null) return NotFound();
 
+            var oldInterpreter1Id = booking.Interpreter1;
+            var oldInterpreter2Id = booking.Interpreter2;
+
             booking.Interpreter1 = string.IsNullOrWhiteSpace(dto.Interpreter1) ? null : dto.Interpreter1;
             booking.Interpreter2 = string.IsNullOrWhiteSpace(dto.Interpreter2) ? null : dto.Interpreter2;
 
@@ -715,6 +859,26 @@ namespace IIAPI.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            if (oldInterpreter1Id != booking.Interpreter1 || oldInterpreter2Id != booking.Interpreter2)
+            {
+                async Task<string> NameOrNoneAsync(string? userId)
+                {
+                    if (string.IsNullOrWhiteSpace(userId)) return "none";
+                    var u = await _userManager.FindByIdAsync(userId);
+                    return u != null ? $"{u.FirstName} {u.LastName}".Trim() : "none";
+                }
+
+                var assignChanges = new List<(string Field, string? OldValue, string? NewValue)>();
+                var oldInt1Name = await NameOrNoneAsync(oldInterpreter1Id);
+                var newInt1Name = await NameOrNoneAsync(booking.Interpreter1);
+                if (oldInt1Name != newInt1Name) assignChanges.Add(("Interpreter 1", oldInt1Name, newInt1Name));
+                var oldInt2Name = await NameOrNoneAsync(oldInterpreter2Id);
+                var newInt2Name = await NameOrNoneAsync(booking.Interpreter2);
+                if (oldInt2Name != newInt2Name) assignChanges.Add(("Interpreter 2", oldInt2Name, newInt2Name));
+
+                await LogAuditAsync(booking.BookingId, "Assigned", "Interpreter assignment changed", RenderChanges(assignChanges), currentUser);
+            }
 
             var hasInterpreterAssigned = !string.IsNullOrWhiteSpace(booking.Interpreter1)
                                       || !string.IsNullOrWhiteSpace(booking.Interpreter2);
@@ -980,6 +1144,11 @@ namespace IIAPI.Controllers
 
             await _context.SaveChangesAsync();
 
+            if (dto.NoShow)
+                await LogAuditAsync(booking.BookingId, "NoShow", "Marked as no-show", booking.InterpreterNotes, user);
+            else
+                await LogAuditAsync(booking.BookingId, "TimeLogged", $"Time logged: {booking.ActualMins} minutes", booking.InterpreterNotes, user);
+
             return Ok(new
             {
                 booking.BookingId,
@@ -1000,8 +1169,30 @@ namespace IIAPI.Controllers
             string? deafName = null, string? professionalName = null,
             string? professionalEmail = null, string? customerRef = null,
             string? addInfo = null, int? attendees = null,
-            string? prepContactName = null, string? prepContactEmail = null)
+            string? prepContactName = null, string? prepContactEmail = null,
+            List<(string Field, string? OldValue, string? NewValue)>? changes = null)
         {
+            // "What's changed" callout — admin/interpreter copies only (the caller
+            // simply never passes changes for the customer copy). Rendered above the
+            // current-state details table so the change is the first thing read.
+            var changesBlock = "";
+            if (changes != null && changes.Count > 0)
+            {
+                var rows = new System.Text.StringBuilder();
+                foreach (var c in changes)
+                {
+                    rows.Append($@"
+            <p style=""margin:0 0 6px 0;font-family:Arial,sans-serif;font-size:13px;color:#1e3a5f;""><strong>{c.Field}:</strong> <span style=""text-decoration:line-through;color:#64748b;"">{c.OldValue ?? "—"}</span> &rarr; <strong style=""color:#0f172a;"">{c.NewValue ?? "—"}</strong></p>");
+                }
+                changesBlock = $@"
+            <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""margin:0 0 24px 0;background-color:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;"">
+              <tr><td style=""padding:14px 18px;"">
+                <p style=""margin:0 0 8px 0;font-family:Arial,sans-serif;font-size:12px;font-weight:bold;color:#1e40af;text-transform:uppercase;letter-spacing:0.05em;"">What's changed</p>
+                {rows}
+              </td></tr>
+            </table>";
+            }
+
             // Build optional extra rows — alternating colours continuing from Time row
             var logoSrc = GetLogoDataUri() ?? "";
             var extraRows = new System.Text.StringBuilder();
@@ -1069,6 +1260,7 @@ namespace IIAPI.Controllers
 
             <p style=""margin:0 0 8px 0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;color:#0f172a;"">Hi {recipientName},</p>
             <p style=""margin:0 0 28px 0;font-family:Arial,sans-serif;font-size:14px;color:#475569;line-height:1.6;"">{intro}</p>
+            {changesBlock}
 
             <!-- Details table -->
             <table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"">
@@ -1106,21 +1298,78 @@ namespace IIAPI.Controllers
 </html>";
         }
 
-        private async Task<(string? duration, string? bookingType)> ResolveBookingLabelsAsync(Booking booking)
+        private async Task<(string? duration, string? bookingType)> ResolveBookingLabelsAsync(Booking booking) =>
+            await ResolveLabelsAsync(booking.DurationId, booking.BookingType);
+
+        /// <summary>
+        /// Same lookup as ResolveBookingLabelsAsync but against raw ids rather than
+        /// a Booking, so a before/after pair of ids (e.g. the duration before and
+        /// after an edit) can each be resolved to their display label independently.
+        /// </summary>
+        private async Task<(string? duration, string? bookingType)> ResolveLabelsAsync(int? durationId, int? bookingTypeId)
         {
             string? duration = null;
-            if (booking.DurationId.HasValue)
+            if (durationId.HasValue)
             {
-                var dur = await _context.Duration.FindAsync(booking.DurationId.Value);
+                var dur = await _context.Duration.FindAsync(durationId.Value);
                 duration = dur?.Duration;
             }
             string? bookingType = null;
-            if (booking.BookingType.HasValue)
+            if (bookingTypeId.HasValue)
             {
-                var bt = await _context.BookingType.FindAsync(booking.BookingType.Value);
+                var bt = await _context.BookingType.FindAsync(bookingTypeId.Value);
                 bookingType = bt?.BookingType;
             }
             return (duration, bookingType);
+        }
+
+        /// <summary>
+        /// Field-level diff for the fields that actually matter to someone deciding
+        /// whether to attend: date, time, duration, booking type and video link.
+        /// Contact details, customer ref and free-text notes are deliberately
+        /// excluded — changing them doesn't change what an admin or interpreter
+        /// needs to do. Compares formatted display strings rather than raw values,
+        /// so a change nobody would actually see (e.g. identical date, different
+        /// time-of-day component) never produces a spurious diff row.
+        /// </summary>
+        private async Task<List<(string Field, string? OldValue, string? NewValue)>> BuildChangeSummaryAsync(
+            DateTime? oldDate, DateTime? newDate,
+            DateTime? oldTime, DateTime? newTime,
+            int? oldDurationId, int? newDurationId,
+            int? oldBookingTypeId, int? newBookingTypeId,
+            string? oldVideoUrl, string? newVideoUrl)
+        {
+            var changes = new List<(string, string?, string?)>();
+
+            string? FmtDate(DateTime? d) => d.HasValue ? d.Value.ToString("dddd, d MMMM yyyy") : null;
+            string? FmtTime(DateTime? t) => t.HasValue ? t.Value.ToString("HH:mm") : null;
+
+            var oldDateStr = FmtDate(oldDate);
+            var newDateStr = FmtDate(newDate);
+            if (oldDateStr != newDateStr) changes.Add(("Date", oldDateStr, newDateStr));
+
+            var oldTimeStr = FmtTime(oldTime);
+            var newTimeStr = FmtTime(newTime);
+            if (oldTimeStr != newTimeStr) changes.Add(("Time", oldTimeStr, newTimeStr));
+
+            if (oldDurationId != newDurationId)
+            {
+                var (oldDur, _) = await ResolveLabelsAsync(oldDurationId, null);
+                var (newDur, _) = await ResolveLabelsAsync(newDurationId, null);
+                if (oldDur != newDur) changes.Add(("Duration", oldDur, newDur));
+            }
+
+            if (oldBookingTypeId != newBookingTypeId)
+            {
+                var (_, oldType) = await ResolveLabelsAsync(null, oldBookingTypeId);
+                var (_, newType) = await ResolveLabelsAsync(null, newBookingTypeId);
+                if (oldType != newType) changes.Add(("Booking type", oldType, newType));
+            }
+
+            if (!string.Equals(oldVideoUrl, newVideoUrl, StringComparison.Ordinal))
+                changes.Add(("Video link", oldVideoUrl, newVideoUrl));
+
+            return changes;
         }
 
         private void FireBookingNotification(
@@ -1130,7 +1379,8 @@ namespace IIAPI.Controllers
             string customerSubject, string customerIntro,
             string adminSubject, string adminIntro,
             string? duration = null, string? bookingType = null,
-            string? companyName = null)
+            string? companyName = null,
+            List<(string Field, string? OldValue, string? NewValue)>? changes = null)
         {
             var date = booking.BookingDate.HasValue
                 ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy")
@@ -1174,7 +1424,8 @@ namespace IIAPI.Controllers
                         var html = BuildBookingEmail(adminName, adminSubject, adminIntro, id, date, time,
                             duration, bookingType, videoUrl, contactEmail,
                             companyName, contactName, deafName, profName, profEmail,
-                            custRef, addInfo, attendees, prepName, prepEmail);
+                            custRef, addInfo, attendees, prepName, prepEmail,
+                            changes: changes);
                         await _emailService.SendAsync(admin.Email, adminSubject, html);
                     }
                     catch (Exception ex) { Console.WriteLine($"[Email] Booking admin notification failed: {ex.Message}"); }
@@ -1222,6 +1473,7 @@ namespace IIAPI.Controllers
                 : declineReason;
 
             await _context.SaveChangesAsync();
+            await LogAuditAsync(booking.BookingId, "Declined", "Marked unable to fulfil", booking.DeclineComments, user);
 
             // Notify SQOD if this booking has an associated appointment
             if (!string.IsNullOrWhiteSpace(booking.SqodAppointmentId))
