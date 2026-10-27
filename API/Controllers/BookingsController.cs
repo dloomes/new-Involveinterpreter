@@ -493,6 +493,40 @@ namespace IIAPI.Controllers
             booking.PrepContactName = dto.PrepContactName;
             booking.PrepContactEmail = dto.PrepContactEmail;
 
+            // If the date or time has changed while an interpreter is assigned,
+            // nobody has confirmed they're actually free at the new slot — clear
+            // the assignment and put the booking back to Pending for
+            // re-assignment, rather than silently keep them booked against a
+            // time they were never checked against. Done before the save so the
+            // Outlook/SQOD sync below (which reads the interpreter list) already
+            // reflects the booking being unassigned.
+            var dateOrTimeChanged =
+                FormatBookingDate(oldBookingDate) != FormatBookingDate(booking.BookingDate) ||
+                FormatBookingTime(oldBookingTime) != FormatBookingTime(booking.BookingTime);
+            var clearedInterpreter1Id = booking.Interpreter1;
+            var clearedInterpreter2Id = booking.Interpreter2;
+            var hadInterpreterAssigned = !string.IsNullOrWhiteSpace(clearedInterpreter1Id) || !string.IsNullOrWhiteSpace(clearedInterpreter2Id);
+            var clearedInterpretersForReschedule = dateOrTimeChanged && hadInterpreterAssigned;
+
+            if (clearedInterpretersForReschedule)
+            {
+                booking.Interpreter1 = null;
+                booking.Interpreter2 = null;
+
+                int pendingStatusId = 3; // fallback — "Pending" as seeded in BookingStatus
+                var pendingConnStr = _context.Database.GetConnectionString();
+                using (var conn = new Microsoft.Data.SqlClient.SqlConnection(pendingConnStr))
+                {
+                    await conn.OpenAsync();
+                    using var cmd = new Microsoft.Data.SqlClient.SqlCommand(
+                        "SELECT TOP 1 Id FROM BookingStatus WHERE Status LIKE '%Pending%'", conn);
+                    var result = await cmd.ExecuteScalarAsync();
+                    if (result != null && result != DBNull.Value)
+                        pendingStatusId = Convert.ToInt32(result);
+                }
+                booking.BookingStatus = pendingStatusId;
+            }
+
             await _context.SaveChangesAsync();
 
             // Sync updated details to SQOD if this booking has an associated appointment
@@ -557,6 +591,26 @@ namespace IIAPI.Controllers
             if (auditChanges.Count > 0)
                 await LogAuditAsync(booking.BookingId, "Updated", "Details updated", RenderChanges(auditChanges), user);
 
+            if (clearedInterpretersForReschedule)
+            {
+                async Task<string> NameOrUnknownAsync(string? userId)
+                {
+                    if (string.IsNullOrWhiteSpace(userId)) return null!;
+                    var u = await _userManager.FindByIdAsync(userId);
+                    return u != null ? $"{u.FirstName} {u.LastName}".Trim() : "Unknown";
+                }
+                var clearedNames = new List<string>();
+                var n1 = await NameOrUnknownAsync(clearedInterpreter1Id);
+                if (n1 != null) clearedNames.Add(n1);
+                var n2 = await NameOrUnknownAsync(clearedInterpreter2Id);
+                if (n2 != null) clearedNames.Add(n2);
+
+                await LogAuditAsync(booking.BookingId, "Unassigned",
+                    "Interpreter(s) unassigned — date/time changed, booking now pending",
+                    clearedNames.Count > 0 ? string.Join(", ", clearedNames) : null,
+                    user);
+            }
+
             // Send booking-updated notifications
             var customerUser = booking.UserId != null ? await _userManager.FindByIdAsync(booking.UserId) : null;
             var admins = await GetNotifiableAdminsAsync();
@@ -565,14 +619,25 @@ namespace IIAPI.Controllers
                 var custName = customerUser.FirstName ?? customerUser.Email;
                 var (dur, bType) = await ResolveBookingLabelsAsync(booking);
                 var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+
+                var customerIntro = "Your booking details have been updated. Please see the summary below.";
+                var adminIntro = $"Booking #{booking.BookingId} has been updated for <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.";
+                if (clearedInterpretersForReschedule)
+                {
+                    customerIntro += " Because the date or time has changed, the previously assigned interpreter has been unassigned and we're arranging a replacement.";
+                    adminIntro += " <strong>The date/time changed, so the assigned interpreter was automatically unassigned and the booking is now Pending re-assignment.</strong>";
+                }
+
                 FireBookingNotification(booking,
                     customerEmail: customerUser.Email,
                     customerName: custName,
                     admins: admins,
                     customerSubject: $"Booking #{booking.BookingId} — Updated",
-                    customerIntro: "Your booking details have been updated. Please see the summary below.",
-                    adminSubject: $"Booking #{booking.BookingId} updated — {custName}",
-                    adminIntro: $"Booking #{booking.BookingId} has been updated for <strong>{customerUser.FirstName} {customerUser.LastName}</strong>.",
+                    customerIntro: customerIntro,
+                    adminSubject: clearedInterpretersForReschedule
+                        ? $"Booking #{booking.BookingId} updated — now Pending re-assignment — {custName}"
+                        : $"Booking #{booking.BookingId} updated — {custName}",
+                    adminIntro: adminIntro,
                     duration: dur, bookingType: bType,
                     companyName: company?.Name,
                     changes: changes
@@ -610,6 +675,42 @@ namespace IIAPI.Controllers
                     {
                         try { await _emailService.SendAsync(interpreter.Email, subject, html); }
                         catch (Exception ex) { Console.WriteLine($"[Email] Interpreter update notification failed: {ex.Message}"); }
+                    });
+                }
+            }
+
+            // Tell whoever was just unassigned why — silently dropping someone
+            // from a booking they thought they still had is worse than this
+            // being automatic in the first place.
+            if (clearedInterpretersForReschedule)
+            {
+                var (dur, bType) = await ResolveBookingLabelsAsync(booking);
+                var date = booking.BookingDate.HasValue ? booking.BookingDate.Value.ToString("dddd, d MMMM yyyy") : "—";
+                var time = booking.BookingTime.HasValue ? booking.BookingTime.Value.ToString("HH:mm") : "—";
+                var company = booking.CustId.HasValue ? await _context.Customers.FindAsync(booking.CustId.Value) : null;
+
+                foreach (var clearedId in new[] { clearedInterpreter1Id, clearedInterpreter2Id })
+                {
+                    if (string.IsNullOrWhiteSpace(clearedId)) continue;
+                    var removedInterpreter = await _userManager.FindByIdAsync(clearedId);
+                    if (removedInterpreter?.Email == null) continue;
+
+                    var interpName = $"{removedInterpreter.FirstName} {removedInterpreter.LastName}".Trim();
+                    var subject = $"Booking #{booking.BookingId} — You've been unassigned";
+                    var intro = "The date or time for this booking has changed, so you've been unassigned and it's now pending re-assignment. You don't need to do anything further for this booking unless you're assigned to it again.";
+                    var html = BuildBookingEmail(interpName, subject, intro, booking.BookingId, date, time,
+                        duration: dur, bookingType: bType,
+                        videoUrl: booking.VideoUrl, contactEmail: booking.ContactEmail,
+                        companyName: company?.Name, contactName: booking.ContactName,
+                        deafName: booking.DeafName, professionalName: booking.ProfessionalName,
+                        professionalEmail: booking.ProfessionalEmail, customerRef: booking.CustomerRef,
+                        addInfo: booking.AddInfo, attendees: booking.Attendees,
+                        prepContactName: booking.PrepContactName, prepContactEmail: booking.PrepContactEmail,
+                        changes: changes);
+                    _ = Task.Run(async () =>
+                    {
+                        try { await _emailService.SendAsync(removedInterpreter.Email, subject, html); }
+                        catch (Exception ex) { Console.WriteLine($"[Email] Interpreter unassignment notification failed: {ex.Message}"); }
                     });
                 }
             }
@@ -1332,6 +1433,13 @@ namespace IIAPI.Controllers
         /// so a change nobody would actually see (e.g. identical date, different
         /// time-of-day component) never produces a spurious diff row.
         /// </summary>
+        // Shared by the field-diff builder and the "did the date/time change"
+        // check that decides whether to clear an assigned interpreter — both
+        // need the identical definition of "changed", not two comparisons that
+        // could quietly drift apart.
+        private static string? FormatBookingDate(DateTime? d) => d.HasValue ? d.Value.ToString("dddd, d MMMM yyyy") : null;
+        private static string? FormatBookingTime(DateTime? t) => t.HasValue ? t.Value.ToString("HH:mm") : null;
+
         private async Task<List<(string Field, string? OldValue, string? NewValue)>> BuildChangeSummaryAsync(
             DateTime? oldDate, DateTime? newDate,
             DateTime? oldTime, DateTime? newTime,
@@ -1341,15 +1449,12 @@ namespace IIAPI.Controllers
         {
             var changes = new List<(string, string?, string?)>();
 
-            string? FmtDate(DateTime? d) => d.HasValue ? d.Value.ToString("dddd, d MMMM yyyy") : null;
-            string? FmtTime(DateTime? t) => t.HasValue ? t.Value.ToString("HH:mm") : null;
-
-            var oldDateStr = FmtDate(oldDate);
-            var newDateStr = FmtDate(newDate);
+            var oldDateStr = FormatBookingDate(oldDate);
+            var newDateStr = FormatBookingDate(newDate);
             if (oldDateStr != newDateStr) changes.Add(("Date", oldDateStr, newDateStr));
 
-            var oldTimeStr = FmtTime(oldTime);
-            var newTimeStr = FmtTime(newTime);
+            var oldTimeStr = FormatBookingTime(oldTime);
+            var newTimeStr = FormatBookingTime(newTime);
             if (oldTimeStr != newTimeStr) changes.Add(("Time", oldTimeStr, newTimeStr));
 
             if (oldDurationId != newDurationId)
